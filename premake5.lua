@@ -15,4 +15,7 @@ workspace "LearningVulkan"
 
 outputdir = "%{cfg.buildcfg}-%{cfg.system}-%{cfg.architecture}"
 
+include "Vendor/GLFW"
+
 include "LearningVulkan"
+

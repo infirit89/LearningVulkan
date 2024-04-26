@@ -1,3 +1,5 @@
+VULKAN_SDK = os.getenv("VULKAN_SDK")
+
 project "LearningVulkan"
     kind "ConsoleApp"
     language "C++"
@@ -18,7 +20,16 @@ project "LearningVulkan"
     includedirs
     {
         "src",
-    } 
+        "%{wks.location}/Vendor/GLFW/include",
+        "%{wks.location}/Vendor/glm",
+        "%{VULKAN_SDK}/Include"
+    }
+
+    links
+    {
+        "GLFW",
+        "%{VULKAN_SDK}/Lib/vulkan-1.lib"
+    }
     
     defines 
     {
