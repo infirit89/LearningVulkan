@@ -4,6 +4,7 @@
 
 #include <vector>
 #include <iostream>
+#include <map>
 
 namespace LearningVulkan 
 {
@@ -55,48 +56,7 @@ namespace LearningVulkan
 	Application::Application()
 	{
 		m_Window = new Window(640, 480, "i cum hard uwu");
-
-		VkApplicationInfo appInfo{};
-		appInfo.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
-		appInfo.pNext = nullptr;
-		appInfo.pApplicationName = "Learning Vulkan";
-		appInfo.applicationVersion = VK_MAKE_VERSION(1, 0, 0);
-		appInfo.pEngineName = "No Engine";
-		appInfo.engineVersion = VK_MAKE_VERSION(1, 0, 0);
-		appInfo.apiVersion = VK_API_VERSION_1_0;
-
-		VkInstanceCreateInfo instanceInfo{};
-		instanceInfo.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
-		instanceInfo.pNext = nullptr;
-		instanceInfo.pApplicationInfo = &appInfo;
-
-		std::vector<const char*> extensionsNames = GetRequiredExtensions();
-
-		uint32_t supportedExtensionCount;
-		vkEnumerateInstanceExtensionProperties(nullptr, &supportedExtensionCount, nullptr);
-
-		std::vector<VkExtensionProperties> supportedExtensions(supportedExtensionCount);
-		vkEnumerateInstanceExtensionProperties(nullptr, &supportedExtensionCount, supportedExtensions.data());
-		instanceInfo.enabledExtensionCount = extensionsNames.size();
-		instanceInfo.ppEnabledExtensionNames = extensionsNames.data();
-
-		if (!CheckValidationLayerSupport())
-			return;
-
-		instanceInfo.enabledLayerCount = s_ValidationLayersSize;
-		instanceInfo.ppEnabledLayerNames = s_ValidationLayers;
-
-		VkDebugUtilsMessengerCreateInfoEXT messengerCreateInfo{};
-		SetupDebugUtilsMessengerCreateInfo(messengerCreateInfo);
-		instanceInfo.pNext = &messengerCreateInfo;
-
-		std::cout << "supported extensions:\n";
-		for (const VkExtensionProperties& extension : supportedExtensions)
-			std::cout << '\t' << extension.extensionName << '\n';
-
-
-		assert(vkCreateInstance(&instanceInfo, nullptr, &m_Instance) == VK_SUCCESS);
-		SetupDebugMessanger();
+		SetupRenderer();
 	}
 
 	Application::~Application()
@@ -109,7 +69,7 @@ namespace LearningVulkan
 
 	void Application::Run()
 	{
-		while (m_Window->IsOpen()) 
+		while (m_Window->IsOpen())
 		{
 			m_Window->PollEvents();
 		}
@@ -168,5 +128,119 @@ namespace LearningVulkan
 		SetupDebugUtilsMessengerCreateInfo(debugMessangerCreateInfo);
 		
 		assert(CreateDebugUtilsMessanger(m_Instance, &debugMessangerCreateInfo, nullptr, &m_DebugMessanger) == VK_SUCCESS);
+	}
+
+	void Application::SetupRenderer()
+	{
+		VkApplicationInfo appInfo{};
+		appInfo.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
+		appInfo.pNext = nullptr;
+		appInfo.pApplicationName = "Learning Vulkan";
+		appInfo.applicationVersion = VK_MAKE_VERSION(1, 0, 0);
+		appInfo.pEngineName = "No Engine";
+		appInfo.engineVersion = VK_MAKE_VERSION(1, 0, 0);
+		appInfo.apiVersion = VK_API_VERSION_1_0;
+
+		VkInstanceCreateInfo instanceInfo{};
+		instanceInfo.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
+		instanceInfo.pNext = nullptr;
+		instanceInfo.pApplicationInfo = &appInfo;
+
+		std::vector<const char*> extensionsNames = GetRequiredExtensions();
+
+		uint32_t supportedExtensionCount;
+		vkEnumerateInstanceExtensionProperties(nullptr, &supportedExtensionCount, nullptr);
+
+		std::vector<VkExtensionProperties> supportedExtensions(supportedExtensionCount);
+		vkEnumerateInstanceExtensionProperties(nullptr, &supportedExtensionCount, supportedExtensions.data());
+		instanceInfo.enabledExtensionCount = extensionsNames.size();
+		instanceInfo.ppEnabledExtensionNames = extensionsNames.data();
+
+		if (!CheckValidationLayerSupport())
+			return;
+
+		instanceInfo.enabledLayerCount = s_ValidationLayersSize;
+		instanceInfo.ppEnabledLayerNames = s_ValidationLayers;
+
+		VkDebugUtilsMessengerCreateInfoEXT messengerCreateInfo{};
+		SetupDebugUtilsMessengerCreateInfo(messengerCreateInfo);
+		instanceInfo.pNext = &messengerCreateInfo;
+
+		std::cout << "supported extensions:\n";
+		for (const VkExtensionProperties& extension : supportedExtensions)
+			std::cout << '\t' << extension.extensionName << '\n';
+
+
+		assert(vkCreateInstance(&instanceInfo, nullptr, &m_Instance) == VK_SUCCESS);
+		SetupDebugMessanger();
+
+		PickPhysicalDevice();
+	}
+
+	VkPhysicalDevice Application::PickPhysicalDevice()
+	{
+		uint32_t physicalDeviceCount = 0;
+		vkEnumeratePhysicalDevices(m_Instance, &physicalDeviceCount, nullptr);
+
+		assert(physicalDeviceCount > 0);
+
+		std::vector<VkPhysicalDevice> physicalDevices(physicalDeviceCount);
+		vkEnumeratePhysicalDevices(m_Instance, &physicalDeviceCount, physicalDevices.data());
+
+		std::multimap<uint32_t, VkPhysicalDevice> deviceCandidates;
+
+		for (const auto& physicalDevice : physicalDevices) 
+		{
+			uint32_t score = RateDeviceSuitability(physicalDevice);
+			deviceCandidates.insert(std::make_pair(score, physicalDevice));
+		}
+
+		if (deviceCandidates.rbegin()->first > 0)
+			return deviceCandidates.rbegin()->second;
+		else 
+		{
+			std::cerr << "No suitable device found" << '\n';
+			return nullptr;
+		}
+	}
+
+	uint32_t Application::RateDeviceSuitability(VkPhysicalDevice physicalDevice)
+	{
+		VkPhysicalDeviceProperties deviceProperties;
+		vkGetPhysicalDeviceProperties(physicalDevice, &deviceProperties);
+
+
+		uint32_t score = 0;
+
+		std::cout << deviceProperties.deviceName << '\n';
+		if (deviceProperties.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU)
+			score++;
+
+		QueueFamilyIndices queueFamilyIndices = FindQueueFamilies(physicalDevice);
+		if (!queueFamilyIndices.GraphicsFamily.has_value())
+			score = 0;
+
+		return score;
+	}
+	QueueFamilyIndices Application::FindQueueFamilies(VkPhysicalDevice physicalDevice)
+	{
+		QueueFamilyIndices queueFamilyIndices;
+
+		uint32_t queueFamilyCount = 0;
+		vkGetPhysicalDeviceQueueFamilyProperties(physicalDevice, &queueFamilyCount, nullptr);
+
+		std::vector<VkQueueFamilyProperties> queueFamilies(queueFamilyCount);
+		vkGetPhysicalDeviceQueueFamilyProperties(physicalDevice, &queueFamilyCount, queueFamilies.data());
+
+		uint32_t familyIndex = 0;
+		for (const auto& queueFamily : queueFamilies) 
+		{
+			if (queueFamily.queueFlags & VK_QUEUE_GRAPHICS_BIT)
+				queueFamilyIndices.GraphicsFamily = familyIndex;
+
+			familyIndex++;
+		}
+
+		return queueFamilyIndices;
 	}
 }
