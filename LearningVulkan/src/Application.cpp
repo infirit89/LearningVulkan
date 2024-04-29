@@ -5,6 +5,10 @@
 #include <vector>
 #include <iostream>
 #include <map>
+#include <set>
+
+#define GLFW_EXPOSE_NATIVE_WIN32
+#include <GLFW/glfw3native.h>
 
 namespace LearningVulkan 
 {
@@ -61,7 +65,9 @@ namespace LearningVulkan
 
 	Application::~Application()
 	{
+		vkDestroyDevice(m_Device, nullptr);
 		DestroyDebugUtilsMessanger(m_Instance, m_DebugMessanger, nullptr);
+		vkDestroySurfaceKHR(m_Instance, m_Surface, nullptr);
 		vkDestroyInstance(m_Instance, nullptr);
 
 		delete m_Window;
@@ -174,7 +180,9 @@ namespace LearningVulkan
 		assert(vkCreateInstance(&instanceInfo, nullptr, &m_Instance) == VK_SUCCESS);
 		SetupDebugMessanger();
 
-		PickPhysicalDevice();
+		SetupSurface();
+		m_PhysicalDevice = PickPhysicalDevice();
+		SetupLogicalDevice();
 	}
 
 	VkPhysicalDevice Application::PickPhysicalDevice()
@@ -220,6 +228,9 @@ namespace LearningVulkan
 		if (!queueFamilyIndices.GraphicsFamily.has_value())
 			score = 0;
 
+		if (!queueFamilyIndices.PresentationFamily.has_value())
+			score = 0;
+
 		return score;
 	}
 	QueueFamilyIndices Application::FindQueueFamilies(VkPhysicalDevice physicalDevice)
@@ -238,9 +249,68 @@ namespace LearningVulkan
 			if (queueFamily.queueFlags & VK_QUEUE_GRAPHICS_BIT)
 				queueFamilyIndices.GraphicsFamily = familyIndex;
 
+			VkBool32 presentationSupport = VK_FALSE;
+			vkGetPhysicalDeviceSurfaceSupportKHR(physicalDevice, familyIndex, m_Surface, &presentationSupport);
+			if (presentationSupport)
+				queueFamilyIndices.PresentationFamily = familyIndex;
+
 			familyIndex++;
 		}
 
 		return queueFamilyIndices;
+	}
+	void Application::SetupLogicalDevice()
+	{
+		QueueFamilyIndices indices = FindQueueFamilies(m_PhysicalDevice);
+
+
+		std::vector<VkDeviceQueueCreateInfo> queueCreateInfos;
+		std::set<uint32_t> uniqueQueueIndices = { indices.GraphicsFamily.value(), indices.PresentationFamily.value() };
+
+		for (const uint32_t queueIndex : uniqueQueueIndices)
+		{
+			VkDeviceQueueCreateInfo queueCreateInfo{};
+
+			queueCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
+			queueCreateInfo.queueCount = 1;
+			queueCreateInfo.queueFamilyIndex = queueIndex;
+
+			float queuePriority = 1.0f;
+			queueCreateInfo.pQueuePriorities = &queuePriority;
+			queueCreateInfos.emplace_back(queueCreateInfo);
+		}
+
+		VkPhysicalDeviceFeatures deviceFeatures{};
+
+		VkDeviceCreateInfo deviceCreateInfo{};
+		deviceCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
+		deviceCreateInfo.enabledExtensionCount = 0;
+
+		deviceCreateInfo.enabledLayerCount = s_ValidationLayersSize;
+		deviceCreateInfo.ppEnabledLayerNames = s_ValidationLayers;
+
+		deviceCreateInfo.pEnabledFeatures = &deviceFeatures;
+
+		deviceCreateInfo.pQueueCreateInfos = queueCreateInfos.data();
+		deviceCreateInfo.queueCreateInfoCount = queueCreateInfos.size();
+
+		assert(vkCreateDevice(m_PhysicalDevice, &deviceCreateInfo, nullptr, &m_Device) == VK_SUCCESS);
+
+		// the queue index is zero as we're creating only one queue from this family
+		vkGetDeviceQueue(m_Device, indices.GraphicsFamily.value(), 0, &m_GraphicsQueue);
+
+		vkGetDeviceQueue(m_Device, indices.PresentationFamily.value(), 0, &m_PresentQueue);
+	}
+
+	void Application::SetupSurface()
+	{
+		/*VkWin32SurfaceCreateInfoKHR surfaceCreateInfo{};
+		surfaceCreateInfo.sType = VK_STRUCTURE_TYPE_WIN32_SURFACE_CREATE_INFO_KHR;
+		surfaceCreateInfo.hwnd = glfwGetWin32Window(m_Window->GetNativeWindow());
+		surfaceCreateInfo.hinstance = GetModuleHandle(nullptr);
+
+		assert(vkCreateWin32SurfaceKHR(m_Instance, &surfaceCreateInfo, nullptr, &m_Surface) == VK_SUCCESS);*/
+
+		assert(glfwCreateWindowSurface(m_Instance, m_Window->GetNativeWindow(), nullptr, &m_Surface) == VK_SUCCESS);
 	}
 }
