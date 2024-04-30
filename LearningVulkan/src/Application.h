@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Window.h"
+#include "RendererContext.h"
 
 #define VK_USE_PLATFORM_WIN32_KHR
 #include "vulkan/vulkan.h"
@@ -17,6 +18,13 @@ namespace LearningVulkan
 		std::optional<uint32_t> PresentationFamily;
 	};
 
+	struct SwapChainSupportDetails 
+	{
+		VkSurfaceCapabilitiesKHR SurfaceCapabilities;
+		std::vector<VkSurfaceFormatKHR> SurfaceFormats;
+		std::vector<VkPresentModeKHR> PresentModes;
+	};
+
 	class Application 
 	{
 	public:
@@ -26,21 +34,24 @@ namespace LearningVulkan
 		void Run();
 
 	private:
-		std::vector<const char*> GetRequiredExtensions();
-		bool CheckValidationLayerSupport();
-
-		void SetupDebugMessanger();
 		void SetupRenderer();
 		VkPhysicalDevice PickPhysicalDevice();
 		uint32_t RateDeviceSuitability(VkPhysicalDevice physicalDevice);
 		QueueFamilyIndices FindQueueFamilies(VkPhysicalDevice physicalDevice);
 		void SetupLogicalDevice();
 		void SetupSurface();
+		bool CheckDeviceExtensionSupport(VkPhysicalDevice physicalDevice);
+		SwapChainSupportDetails QuerySwapChainSupport(VkPhysicalDevice physicalDevice);
+		VkSurfaceFormatKHR ChooseCorrectSurfaceFormat(const std::vector<VkSurfaceFormatKHR>& surfaceFormats);
+		VkPresentModeKHR ChooseSurfacePresentMode(const std::vector<VkPresentModeKHR>& presentModes);
+		VkExtent2D ChooseSwapchainExtent(const VkSurfaceCapabilitiesKHR& surfaceCapabilities);
+		void CreateSwapchain();
+		void CreateImageViews();
 
 	private:
 		Window* m_Window;
-		VkInstance m_Instance;
-		VkDebugUtilsMessengerEXT m_DebugMessanger;
+		RendererContext* m_RenderContext;
+
 		VkPhysicalDevice m_PhysicalDevice = VK_NULL_HANDLE;
 		VkDevice m_Device;
 
@@ -48,6 +59,11 @@ namespace LearningVulkan
 		VkQueue m_PresentQueue;
 
 		VkSurfaceKHR m_Surface;
+		VkSwapchainKHR m_Swapchain;
+		std::vector<VkImage> m_SwapchainImages;
+		std::vector<VkImageView> m_SwapchainImageViews;
+		VkFormat m_SwapchainFormat;
+		VkExtent2D m_SwapchainImagesExtent;
 	};
 }
 
