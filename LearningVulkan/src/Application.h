@@ -47,6 +47,7 @@ namespace LearningVulkan
 		VkExtent2D ChooseSwapchainExtent(const VkSurfaceCapabilitiesKHR& surfaceCapabilities);
 		void CreateSwapchain();
 		void CreateImageViews();
+		void CreateRenderPass();
 
 	private:
 		Window* m_Window;
@@ -64,6 +65,7 @@ namespace LearningVulkan
 		std::vector<VkImageView> m_SwapchainImageViews;
 		VkFormat m_SwapchainFormat;
 		VkExtent2D m_SwapchainImagesExtent;
+		VkRenderPass m_RenderPass;
 	};
 }
 
