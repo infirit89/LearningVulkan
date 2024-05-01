@@ -48,6 +48,7 @@ namespace LearningVulkan
 		void CreateSwapchain();
 		void CreateImageViews();
 		void CreateRenderPass();
+		void CreateFramebuffers();
 
 	private:
 		Window* m_Window;
@@ -66,6 +67,7 @@ namespace LearningVulkan
 		VkFormat m_SwapchainFormat;
 		VkExtent2D m_SwapchainImagesExtent;
 		VkRenderPass m_RenderPass;
+		std::vector<VkFramebuffer> m_Framebuffers;
 	};
 }
 

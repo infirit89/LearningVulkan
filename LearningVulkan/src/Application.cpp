@@ -30,11 +30,13 @@ namespace LearningVulkan
 
 	Application::~Application()
 	{
+		for (const auto& framebuffer : m_Framebuffers)
+			vkDestroyFramebuffer(m_Device, framebuffer, nullptr);
+
 		vkDestroyRenderPass(m_Device, m_RenderPass, nullptr);
+
 		for (const auto& imageView : m_SwapchainImageViews)
-		{
 			vkDestroyImageView(m_Device, imageView, nullptr);
-		}
 
 		vkDestroySwapchainKHR(m_Device, m_Swapchain, nullptr);
 		vkDestroyDevice(m_Device, nullptr);
@@ -62,6 +64,8 @@ namespace LearningVulkan
 		SetupLogicalDevice();
 		CreateSwapchain();
 		CreateImageViews();
+		CreateRenderPass();
+		CreateFramebuffers();
 	}
 
 	VkPhysicalDevice Application::PickPhysicalDevice()
@@ -362,13 +366,40 @@ namespace LearningVulkan
 		colorAttachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
 		colorAttachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
 
+		VkAttachmentReference attachmentRef{};
+		attachmentRef.attachment = 0;
+		attachmentRef.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+
+		VkSubpassDescription subpassDescription{};
+		subpassDescription.colorAttachmentCount = 1;
+		subpassDescription.pColorAttachments = &attachmentRef;
+
 		VkRenderPassCreateInfo renderPassCreateInfo{};
 		renderPassCreateInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
 		renderPassCreateInfo.attachmentCount = 1;
 		renderPassCreateInfo.pAttachments = &colorAttachment;
-		renderPassCreateInfo.subpassCount = 0;
+		renderPassCreateInfo.subpassCount = 1;
+		renderPassCreateInfo.pSubpasses = &subpassDescription;
 
 		assert(vkCreateRenderPass(m_Device, &renderPassCreateInfo, nullptr, &m_RenderPass) == VK_SUCCESS);
+	}
+
+	void Application::CreateFramebuffers()
+	{
+		m_Framebuffers.resize(m_SwapchainImageViews.size());
+
+		for (size_t i = 0; i < m_SwapchainImageViews.size(); i++)
+		{
+			VkFramebufferCreateInfo framebufferCreateInfo{};
+			framebufferCreateInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
+			framebufferCreateInfo.attachmentCount = 1;
+			framebufferCreateInfo.pAttachments = &m_SwapchainImageViews.at(i);
+			framebufferCreateInfo.renderPass = m_RenderPass;
+			framebufferCreateInfo.width = m_SwapchainImagesExtent.width;
+			framebufferCreateInfo.height = m_SwapchainImagesExtent.height;
+			framebufferCreateInfo.layers = 1;
+			assert(vkCreateFramebuffer(m_Device, &framebufferCreateInfo, nullptr, &m_Framebuffers.at(i)) == VK_SUCCESS);
+		}
 	}
 
 	VkExtent2D Application::ChooseSwapchainExtent(const VkSurfaceCapabilitiesKHR& surfaceCapabilities)
