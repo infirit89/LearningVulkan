@@ -49,6 +49,11 @@ namespace LearningVulkan
 		void CreateImageViews();
 		void CreateRenderPass();
 		void CreateFramebuffers();
+		void CreateCommandPool();
+		void AllocateCommandBuffer();
+		void RecordCommandBuffer(uint32_t imageIndex);
+		void CreateSyncObjects();
+		void DrawFrame();
 
 	private:
 		Window* m_Window;
@@ -68,6 +73,11 @@ namespace LearningVulkan
 		VkExtent2D m_SwapchainImagesExtent;
 		VkRenderPass m_RenderPass;
 		std::vector<VkFramebuffer> m_Framebuffers;
+		VkCommandPool m_CommandPool;
+		VkCommandBuffer m_CommandBuffer;
+		VkSemaphore m_SwapchainImageAvailableSemaphore;
+		VkSemaphore m_FinishedRenderingSemaphore;
+		VkFence m_InFlightFence;
 	};
 }
 

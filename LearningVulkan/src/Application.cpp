@@ -30,6 +30,12 @@ namespace LearningVulkan
 
 	Application::~Application()
 	{
+		vkDestroySemaphore(m_Device, m_SwapchainImageAvailableSemaphore, nullptr);
+		vkDestroySemaphore(m_Device, m_FinishedRenderingSemaphore, nullptr);
+		vkDestroyFence(m_Device, m_InFlightFence, nullptr);
+		vkFreeCommandBuffers(m_Device, m_CommandPool, 1, &m_CommandBuffer);
+		vkDestroyCommandPool(m_Device, m_CommandPool, nullptr);
+
 		for (const auto& framebuffer : m_Framebuffers)
 			vkDestroyFramebuffer(m_Device, framebuffer, nullptr);
 
@@ -48,10 +54,19 @@ namespace LearningVulkan
 
 	void Application::Run()
 	{
+		float currentFrameTime = 0.0f, lastFrameTime = 0.0f;
 		while (m_Window->IsOpen())
 		{
+			currentFrameTime = glfwGetTime();
+			float deltaTime = currentFrameTime - lastFrameTime;
+			lastFrameTime = currentFrameTime;
 			m_Window->PollEvents();
+			DrawFrame();
+
+			std::cout << 1 / deltaTime << '\n';
 		}
+
+		vkDeviceWaitIdle(m_Device);
 	}
 
 
@@ -66,6 +81,9 @@ namespace LearningVulkan
 		CreateImageViews();
 		CreateRenderPass();
 		CreateFramebuffers();
+		CreateCommandPool();
+		AllocateCommandBuffer();
+		CreateSyncObjects();
 	}
 
 	VkPhysicalDevice Application::PickPhysicalDevice()
@@ -381,6 +399,17 @@ namespace LearningVulkan
 		renderPassCreateInfo.subpassCount = 1;
 		renderPassCreateInfo.pSubpasses = &subpassDescription;
 
+		VkSubpassDependency subpassDependency{};
+		subpassDependency.srcSubpass = VK_SUBPASS_EXTERNAL;
+		subpassDependency.dstSubpass = 0;
+		subpassDependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+		subpassDependency.srcAccessMask = 0;
+		subpassDependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+		subpassDependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+
+		renderPassCreateInfo.dependencyCount = 1;
+		renderPassCreateInfo.pDependencies = &subpassDependency;
+
 		assert(vkCreateRenderPass(m_Device, &renderPassCreateInfo, nullptr, &m_RenderPass) == VK_SUCCESS);
 	}
 
@@ -400,6 +429,115 @@ namespace LearningVulkan
 			framebufferCreateInfo.layers = 1;
 			assert(vkCreateFramebuffer(m_Device, &framebufferCreateInfo, nullptr, &m_Framebuffers.at(i)) == VK_SUCCESS);
 		}
+	}
+
+	void Application::CreateCommandPool()
+	{
+		QueueFamilyIndices indices = FindQueueFamilies(m_PhysicalDevice);
+		VkCommandPoolCreateInfo commandPoolCreateInfo{};
+		commandPoolCreateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
+		commandPoolCreateInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
+		commandPoolCreateInfo.queueFamilyIndex = indices.GraphicsFamily.value();
+
+		assert(vkCreateCommandPool(m_Device, &commandPoolCreateInfo, nullptr, &m_CommandPool) == VK_SUCCESS);
+	}
+
+	void Application::AllocateCommandBuffer()
+	{
+		VkCommandBufferAllocateInfo commandBufferAllocateInfo{};
+		commandBufferAllocateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+		commandBufferAllocateInfo.commandBufferCount = 1;
+		commandBufferAllocateInfo.commandPool = m_CommandPool;
+		commandBufferAllocateInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+
+		assert(vkAllocateCommandBuffers(m_Device, &commandBufferAllocateInfo, &m_CommandBuffer) == VK_SUCCESS);
+	}
+
+	void Application::RecordCommandBuffer(uint32_t imageIndex)
+	{
+		VkCommandBufferBeginInfo commandBufferBeginInfo{};
+		commandBufferBeginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+		
+		assert(vkBeginCommandBuffer(m_CommandBuffer, &commandBufferBeginInfo) == VK_SUCCESS);
+
+		VkRenderPassBeginInfo renderPassBeginInfo{};
+		renderPassBeginInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+		renderPassBeginInfo.renderPass = m_RenderPass;
+		renderPassBeginInfo.framebuffer = m_Framebuffers.at(imageIndex);
+		renderPassBeginInfo.renderArea.offset = { 0, 0 };
+		renderPassBeginInfo.renderArea.extent = m_SwapchainImagesExtent;
+		VkClearValue clearValues{};
+		clearValues.color = { { 0.1f, 0.1f, 0.1f, 1.0f } };
+		renderPassBeginInfo.clearValueCount = 1;
+		renderPassBeginInfo.pClearValues = &clearValues;
+		vkCmdBeginRenderPass(m_CommandBuffer, &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
+
+		VkViewport viewport{};
+		viewport.x = 0.0f;
+		viewport.y = 0.0f;
+		viewport.width = m_SwapchainImagesExtent.width;
+		viewport.height = m_SwapchainImagesExtent.height;
+		viewport.minDepth = 0.0f;
+		viewport.maxDepth = 1.0f;
+
+		vkCmdSetViewport(m_CommandBuffer, 0, 1, &viewport);
+
+		VkRect2D scissorRect{};
+		scissorRect.offset = { 0, 0 };
+		scissorRect.extent = m_SwapchainImagesExtent;
+		vkCmdSetScissor(m_CommandBuffer, 0, 1, &scissorRect);
+
+		vkCmdEndRenderPass(m_CommandBuffer);
+
+		assert(vkEndCommandBuffer(m_CommandBuffer) == VK_SUCCESS);
+	}
+
+	void Application::CreateSyncObjects()
+	{
+		VkSemaphoreCreateInfo semaphoreCreateInfo{};
+		semaphoreCreateInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
+		assert(vkCreateSemaphore(m_Device, &semaphoreCreateInfo, nullptr, &m_SwapchainImageAvailableSemaphore) == VK_SUCCESS);
+		assert(vkCreateSemaphore(m_Device, &semaphoreCreateInfo, nullptr, &m_FinishedRenderingSemaphore) == VK_SUCCESS);
+
+		VkFenceCreateInfo fenceCreateInfo{};
+		fenceCreateInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
+		assert(vkCreateFence(m_Device, &fenceCreateInfo, nullptr, &m_InFlightFence) == VK_SUCCESS);
+
+
+	}
+
+	void Application::DrawFrame()
+	{
+		uint32_t imageIndex;
+		vkAcquireNextImageKHR(m_Device, m_Swapchain, UINT64_MAX, m_SwapchainImageAvailableSemaphore, VK_NULL_HANDLE, &imageIndex);
+		vkResetCommandBuffer(m_CommandBuffer, 0);
+		RecordCommandBuffer(imageIndex);
+		VkSubmitInfo submitInfo{};
+		submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+
+		VkPipelineStageFlags pipelineStageFlags = { VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };
+		submitInfo.waitSemaphoreCount = 1;
+		submitInfo.pWaitSemaphores = &m_SwapchainImageAvailableSemaphore;
+		submitInfo.pWaitDstStageMask = &pipelineStageFlags;
+		submitInfo.commandBufferCount = 1;
+		submitInfo.pCommandBuffers = &m_CommandBuffer;
+		submitInfo.signalSemaphoreCount = 1;
+		submitInfo.pSignalSemaphores = &m_FinishedRenderingSemaphore;
+		assert(vkQueueSubmit(m_GraphicsQueue, 1, &submitInfo, m_InFlightFence) == VK_SUCCESS);
+
+		VkPresentInfoKHR presentInfo{};
+		presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
+
+		presentInfo.waitSemaphoreCount = 1;
+		presentInfo.pWaitSemaphores = &m_FinishedRenderingSemaphore;
+		presentInfo.swapchainCount = 1;
+		presentInfo.pSwapchains = &m_Swapchain;
+		presentInfo.pImageIndices = &imageIndex;
+
+		vkQueuePresentKHR(m_PresentQueue, &presentInfo);
+
+		vkWaitForFences(m_Device, 1, &m_InFlightFence, VK_TRUE, UINT64_MAX);
+		vkResetFences(m_Device, 1, &m_InFlightFence);
 	}
 
 	VkExtent2D Application::ChooseSwapchainExtent(const VkSurfaceCapabilitiesKHR& surfaceCapabilities)
