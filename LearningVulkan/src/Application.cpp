@@ -10,6 +10,8 @@
 #include <set>
 #include <array>
 #include <algorithm>
+#include <filesystem>
+#include <fstream>
 
 #define GLFW_EXPOSE_NATIVE_WIN32
 #include <GLFW/glfw3native.h>
@@ -21,6 +23,20 @@ namespace LearningVulkan
 	{
 		VK_KHR_SWAPCHAIN_EXTENSION_NAME
 	};
+
+	static std::vector<char> ReadShaderFile(const std::filesystem::path& shaderPath) 
+	{
+		std::ifstream file(shaderPath, std::ios::ate | std::ios::binary);
+
+		assert(file.is_open());
+
+		size_t fileSize = file.tellg();
+		std::vector<char> fileData(fileSize);
+		file.seekg(0);
+		file.read(fileData.data(), fileSize);
+
+		return fileData;
+	}
 
 	Application::Application()
 	{
@@ -538,6 +554,76 @@ namespace LearningVulkan
 
 		vkWaitForFences(m_Device, 1, &m_InFlightFence, VK_TRUE, UINT64_MAX);
 		vkResetFences(m_Device, 1, &m_InFlightFence);
+	}
+
+	VkShaderModule Application::CreateShader(const std::vector<char>& shaderData) 
+	{
+		VkShaderModuleCreateInfo shaderModuleCreateInfo{};
+		shaderModuleCreateInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
+		shaderModuleCreateInfo.codeSize = shaderData.size();
+		shaderModuleCreateInfo.pCode = reinterpret_cast<const uint32_t*>(shaderData.data());
+
+		VkShaderModule shaderModule;
+		assert(vkCreateShaderModule(m_Device, &shaderModuleCreateInfo, nullptr, &shaderModule) == VK_SUCCESS);
+	}
+
+	void Application::CreateGraphicsPipeline()
+	{
+		std::vector<char> vertexShaderData = ReadShaderFile("assets/shaders/bin/BasicVert.spv");
+		std::vector<char> fragmentShaderData = ReadShaderFile("assets/shaders/bin/BasicFrag.spv");
+
+		VkShaderModule vertexShader = CreateShader(vertexShaderData);
+		VkShaderModule fragmentShader = CreateShader(fragmentShaderData);
+
+		VkPipelineShaderStageCreateInfo pipelineShaderVertexStageCreateInfo{};
+		pipelineShaderVertexStageCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+		pipelineShaderVertexStageCreateInfo.module = vertexShader;
+		pipelineShaderVertexStageCreateInfo.stage = VK_SHADER_STAGE_VERTEX_BIT;
+		pipelineShaderVertexStageCreateInfo.pName = "main";
+
+		VkPipelineShaderStageCreateInfo pipelineShaderFragmentStageCreateInfo{};
+		pipelineShaderFragmentStageCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+		pipelineShaderFragmentStageCreateInfo.module = fragmentShader;
+		pipelineShaderFragmentStageCreateInfo.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
+		pipelineShaderFragmentStageCreateInfo.pName = "main";
+
+		VkPipelineShaderStageCreateInfo shaderStages[] = { pipelineShaderVertexStageCreateInfo, pipelineShaderFragmentStageCreateInfo };
+
+		constexpr size_t dynamicStateSize = 2;
+		std::array<VkDynamicState, dynamicStateSize> dynamicStates
+		{
+			VK_DYNAMIC_STATE_SCISSOR,
+			VK_DYNAMIC_STATE_VIEWPORT
+		};
+
+		VkPipelineDynamicStateCreateInfo pipelineDynamicStateCreateInfo{};
+		pipelineDynamicStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
+		pipelineDynamicStateCreateInfo.dynamicStateCount = dynamicStateSize;
+		pipelineDynamicStateCreateInfo.pDynamicStates = dynamicStates.data();
+
+		VkPipelineInputAssemblyStateCreateInfo pipelineInputAssemblyStateCreateInfo{};
+		pipelineInputAssemblyStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
+		pipelineInputAssemblyStateCreateInfo.primitiveRestartEnable = VK_FALSE;
+		pipelineInputAssemblyStateCreateInfo.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+
+		VkPipelineRasterizationStateCreateInfo pipelineRasterizationStateCreateInfo{};
+		pipelineRasterizationStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
+		pipelineRasterizationStateCreateInfo.frontFace = VK_FRONT_FACE_CLOCKWISE;
+		pipelineRasterizationStateCreateInfo.cullMode = VK_CULL_MODE_BACK_BIT;
+		pipelineRasterizationStateCreateInfo.polygonMode = VK_POLYGON_MODE_FILL;
+		pipelineRasterizationStateCreateInfo.depthClampEnable = VK_FALSE;
+		pipelineRasterizationStateCreateInfo.depthBiasEnable = VK_FALSE;
+		pipelineRasterizationStateCreateInfo.rasterizerDiscardEnable = VK_FALSE;
+
+		VkPipelineMultisampleStateCreateInfo pipelineMultisampleStateCreateInfo{};
+		pipelineMultisampleStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
+		pipelineMultisampleStateCreateInfo.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
+
+
+
+
+		vkDestroyShaderModule(m_Device, fragmentShader, nullptr);
+		vkDestroyShaderModule(m_Device, vertexShader, nullptr);
 	}
 
 	VkExtent2D Application::ChooseSwapchainExtent(const VkSurfaceCapabilitiesKHR& surfaceCapabilities)

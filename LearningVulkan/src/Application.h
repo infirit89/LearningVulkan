@@ -54,6 +54,8 @@ namespace LearningVulkan
 		void RecordCommandBuffer(uint32_t imageIndex);
 		void CreateSyncObjects();
 		void DrawFrame();
+		void CreateGraphicsPipeline();
+		VkShaderModule CreateShader(const std::vector<char>& shaderData);
 
 	private:
 		Window* m_Window;
