@@ -79,7 +79,7 @@ namespace LearningVulkan
 			m_Window->PollEvents();
 			DrawFrame();
 
-			std::cout << 1 / deltaTime << '\n';
+			//std::cout << 1 / deltaTime << '\n';
 		}
 
 		vkDeviceWaitIdle(m_Device);
@@ -343,9 +343,9 @@ namespace LearningVulkan
 		}
 		else 
 		{
-			swapchainCreateInfo.imageSharingMode = VK_SHARING_MODE_CONCURRENT;
-			swapchainCreateInfo.queueFamilyIndexCount = 0;
-			swapchainCreateInfo.pQueueFamilyIndices = nullptr;
+			swapchainCreateInfo.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
+			swapchainCreateInfo.queueFamilyIndexCount = 1;
+			swapchainCreateInfo.pQueueFamilyIndices = &queueFamilyIndices.GraphicsFamily.value();
 		}
 
 		swapchainCreateInfo.preTransform = swapchainDetails.SurfaceCapabilities.currentTransform;
@@ -565,6 +565,7 @@ namespace LearningVulkan
 
 		VkShaderModule shaderModule;
 		assert(vkCreateShaderModule(m_Device, &shaderModuleCreateInfo, nullptr, &shaderModule) == VK_SUCCESS);
+		return shaderModule;
 	}
 
 	void Application::CreateGraphicsPipeline()

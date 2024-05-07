@@ -15,7 +15,22 @@ namespace LearningVulkan
 	static VkBool32 VKAPI_CALL DebugCallback(VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity, VkDebugUtilsMessageTypeFlagsEXT messageType,
 		const VkDebugUtilsMessengerCallbackDataEXT* callbackData, void* userData)
 	{
-		std::cerr << "validation error: " << callbackData->pMessage << '\n';
+		switch (messageSeverity)
+		{
+		case VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT:
+			std::cerr << "validation trace: " << callbackData->pMessage << '\n';
+			break;
+		case VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT:
+			std::cerr << "validation info: " << callbackData->pMessage << '\n';
+			break;
+		case VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT:
+			std::cerr << "validation warning: " << callbackData->pMessage << '\n';
+			break;
+		case VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT:
+			std::cerr << "validation error: " << callbackData->pMessage << '\n';
+			break;
+		}
+
 		return VK_FALSE;
 	}
 
