@@ -80,6 +80,8 @@ namespace LearningVulkan
 		VkSemaphore m_SwapchainImageAvailableSemaphore;
 		VkSemaphore m_FinishedRenderingSemaphore;
 		VkFence m_InFlightFence;
+		VkPipelineLayout m_PipelineLayout;
+		VkPipeline m_Pipeline;
 	};
 }
 
