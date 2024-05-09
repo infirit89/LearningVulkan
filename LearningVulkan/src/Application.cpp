@@ -491,6 +491,7 @@ namespace LearningVulkan
 		renderPassBeginInfo.clearValueCount = 1;
 		renderPassBeginInfo.pClearValues = &clearValues;
 		vkCmdBeginRenderPass(m_CommandBuffer, &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
+		vkCmdBindPipeline(m_CommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_Pipeline);
 
 		VkViewport viewport{};
 		viewport.x = 0.0f;
@@ -506,6 +507,9 @@ namespace LearningVulkan
 		scissorRect.offset = { 0, 0 };
 		scissorRect.extent = m_SwapchainImagesExtent;
 		vkCmdSetScissor(m_CommandBuffer, 0, 1, &scissorRect);
+
+
+		vkCmdDraw(m_CommandBuffer, 3, 1, 0, 0);
 
 		vkCmdEndRenderPass(m_CommandBuffer);
 
