@@ -22,22 +22,29 @@ project "LearningVulkan"
         "src",
         "%{wks.location}/Vendor/GLFW/include",
         "%{wks.location}/Vendor/glm",
-        "%{VULKAN_SDK}/Include"
+        "%{VULKAN_SDK}/Include",
+        "%{wks.location}/Vendor/Optick/src/"
     }
 
     links
     {
         "GLFW",
-        "%{VULKAN_SDK}/Lib/vulkan-1.lib"
+        "%{VULKAN_SDK}/Lib/vulkan-1.lib",
+        "OptickCore"
     }
-    
-    defines 
+
+    defines
     {
         "_CRT_SECURE_NO_WARNINGS"
     }
 
     filter "system:windows"
         systemversion "latest"
+
+        postbuildcommands 
+        {
+            "{COPY} %{wks.location}Vendor/Optick/bin/%{outputdir}/OptickCore.dll %{prj.location}/bin/%{outputdir}"
+        }
 
     filter "configurations:Debug"
         defines "DEBUG"

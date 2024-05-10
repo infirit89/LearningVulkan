@@ -2,7 +2,10 @@
 <Project>
   <ProjectOutputs>
     <ProjectOutput>
-      <FullPath>D:\Projects\github\LearningVulkan\LearningVulkan\bin\Debug-windows-x86_64\LearningVulkan.exe</FullPath>
+      <FullPath>C:\Projects\LearningVulkan\Vendor\optick\bin\Debug-windows-x86_64\OptickCore.dll</FullPath>
+    </ProjectOutput>
+    <ProjectOutput>
+      <FullPath>C:\Projects\LearningVulkan\LearningVulkan\bin\Debug-windows-x86_64\LearningVulkan.exe</FullPath>
     </ProjectOutput>
   </ProjectOutputs>
   <ContentFiles />

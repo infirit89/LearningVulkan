@@ -16,6 +16,8 @@
 #define GLFW_EXPOSE_NATIVE_WIN32
 #include <GLFW/glfw3native.h>
 
+#include <optick.h>
+
 namespace LearningVulkan 
 {
 	static constexpr size_t s_DeviceExtensionsSize = 1;
@@ -76,6 +78,7 @@ namespace LearningVulkan
 		float currentFrameTime = 0.0f, lastFrameTime = 0.0f;
 		while (m_Window->IsOpen())
 		{
+			OPTICK_FRAME("MainThread");
 			currentFrameTime = glfwGetTime();
 			float deltaTime = currentFrameTime - lastFrameTime;
 			lastFrameTime = currentFrameTime;
@@ -475,10 +478,14 @@ namespace LearningVulkan
 
 	void Application::RecordCommandBuffer(uint32_t imageIndex)
 	{
+		OPTICK_EVENT();
 		VkCommandBufferBeginInfo commandBufferBeginInfo{};
 		commandBufferBeginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
 		
 		assert(vkBeginCommandBuffer(m_CommandBuffer, &commandBufferBeginInfo) == VK_SUCCESS);
+
+		OPTICK_GPU_CONTEXT(m_CommandBuffer);
+		OPTICK_GPU_EVENT("Draw Triangle");
 
 		VkRenderPassBeginInfo renderPassBeginInfo{};
 		renderPassBeginInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
@@ -490,8 +497,15 @@ namespace LearningVulkan
 		clearValues.color = { { 0.1f, 0.1f, 0.1f, 1.0f } };
 		renderPassBeginInfo.clearValueCount = 1;
 		renderPassBeginInfo.pClearValues = &clearValues;
-		vkCmdBeginRenderPass(m_CommandBuffer, &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
-		vkCmdBindPipeline(m_CommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_Pipeline);
+		{
+			OPTICK_GPU_EVENT("Begin render pass");
+			vkCmdBeginRenderPass(m_CommandBuffer, &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
+		}
+
+		{
+			OPTICK_GPU_EVENT("Bind pipeline");
+			vkCmdBindPipeline(m_CommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_Pipeline);
+		}
 
 		VkViewport viewport{};
 		viewport.x = 0.0f;
@@ -501,17 +515,30 @@ namespace LearningVulkan
 		viewport.minDepth = 0.0f;
 		viewport.maxDepth = 1.0f;
 
-		vkCmdSetViewport(m_CommandBuffer, 0, 1, &viewport);
+		{
+			OPTICK_GPU_EVENT("Set viewport");
+			vkCmdSetViewport(m_CommandBuffer, 0, 1, &viewport);
+		}
 
 		VkRect2D scissorRect{};
 		scissorRect.offset = { 0, 0 };
 		scissorRect.extent = m_SwapchainImagesExtent;
-		vkCmdSetScissor(m_CommandBuffer, 0, 1, &scissorRect);
+
+		{
+			OPTICK_GPU_EVENT("Set Scissor");
+			vkCmdSetScissor(m_CommandBuffer, 0, 1, &scissorRect);
+		}
 
 
-		vkCmdDraw(m_CommandBuffer, 3, 1, 0, 0);
+		{
+			OPTICK_GPU_EVENT("Cmd Draw");
+			vkCmdDraw(m_CommandBuffer, 3, 1, 0, 0);
+		}
 
-		vkCmdEndRenderPass(m_CommandBuffer);
+		{
+			OPTICK_GPU_EVENT("End render pass");
+			vkCmdEndRenderPass(m_CommandBuffer);
+		}
 
 		assert(vkEndCommandBuffer(m_CommandBuffer) == VK_SUCCESS);
 	}
@@ -532,6 +559,7 @@ namespace LearningVulkan
 
 	void Application::DrawFrame()
 	{
+		OPTICK_EVENT();
 		uint32_t imageIndex;
 		vkAcquireNextImageKHR(m_Device, m_Swapchain, UINT64_MAX, m_SwapchainImageAvailableSemaphore, VK_NULL_HANDLE, &imageIndex);
 		vkResetCommandBuffer(m_CommandBuffer, 0);
@@ -558,10 +586,16 @@ namespace LearningVulkan
 		presentInfo.pSwapchains = &m_Swapchain;
 		presentInfo.pImageIndices = &imageIndex;
 
-		vkQueuePresentKHR(m_PresentQueue, &presentInfo);
+		{
+			OPTICK_EVENT("Queue present");
+			vkQueuePresentKHR(m_PresentQueue, &presentInfo);
+		}
 
-		vkWaitForFences(m_Device, 1, &m_InFlightFence, VK_TRUE, UINT64_MAX);
-		vkResetFences(m_Device, 1, &m_InFlightFence);
+		{
+			OPTICK_EVENT("Wait for fences");
+			vkWaitForFences(m_Device, 1, &m_InFlightFence, VK_TRUE, UINT64_MAX);
+			vkResetFences(m_Device, 1, &m_InFlightFence);
+		}
 	}
 
 	VkShaderModule Application::CreateShader(const std::vector<char>& shaderData) 
