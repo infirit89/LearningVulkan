@@ -11,5 +11,11 @@ namespace LearningVulkan
 		{
 			"VK_LAYER_KHRONOS_validation",
 		};
+
+		inline constexpr size_t DeviceExtensionsSize = 1;
+		inline std::array<const char*, DeviceExtensionsSize> DeviceExtensions
+		{
+			VK_KHR_SWAPCHAIN_EXTENSION_NAME
+		};
 	}
 }

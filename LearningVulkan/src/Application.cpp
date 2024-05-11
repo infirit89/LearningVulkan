@@ -21,12 +21,6 @@
 
 namespace LearningVulkan 
 {
-	static constexpr size_t s_DeviceExtensionsSize = 1;
-	static std::array<const char*, s_DeviceExtensionsSize> s_DeviceExtensions
-	{
-		VK_KHR_SWAPCHAIN_EXTENSION_NAME
-	};
-
 	static std::vector<char> ReadShaderFile(const std::filesystem::path& shaderPath) 
 	{
 		std::ifstream file(shaderPath, std::ios::ate | std::ios::binary);
@@ -54,32 +48,32 @@ namespace LearningVulkan
 		for (const auto& data : m_PerFrameData)
 		{
 			vkDestroySemaphore(
-				m_Device,
+				m_PhysicalDevice->GetLogicalDevice(),
 				data.SwapchainImageAcquireSemaphore,
 				nullptr);
 			vkDestroySemaphore(
-				m_Device,
+				m_PhysicalDevice->GetLogicalDevice(),
 				data.QueueReadySemaphore,
 				nullptr);
-			vkDestroyFence(m_Device, data.PresentFence, nullptr);
+			vkDestroyFence(m_PhysicalDevice->GetLogicalDevice(), data.PresentFence, nullptr);
 			vkFreeCommandBuffers(
-				m_Device, data.CommandPool, 1, &data.CommandBuffer);
-			vkDestroyCommandPool(m_Device, data.CommandPool, nullptr);
+				m_PhysicalDevice->GetLogicalDevice(), data.CommandPool, 1, &data.CommandBuffer);
+			vkDestroyCommandPool(m_PhysicalDevice->GetLogicalDevice(), data.CommandPool, nullptr);
 		}
 
-		vkDestroyPipeline(m_Device, m_Pipeline, nullptr);
-		vkDestroyPipelineLayout(m_Device, m_PipelineLayout, nullptr);
+		vkDestroyPipeline(m_PhysicalDevice->GetLogicalDevice(), m_Pipeline, nullptr);
+		vkDestroyPipelineLayout(m_PhysicalDevice->GetLogicalDevice(), m_PipelineLayout, nullptr);
 
 		for (const auto& framebuffer : m_Framebuffers)
-			vkDestroyFramebuffer(m_Device, framebuffer, nullptr);
+			vkDestroyFramebuffer(m_PhysicalDevice->GetLogicalDevice(), framebuffer, nullptr);
 
-		vkDestroyRenderPass(m_Device, m_RenderPass, nullptr);
+		vkDestroyRenderPass(m_PhysicalDevice->GetLogicalDevice(), m_RenderPass, nullptr);
 
 		for (const auto& imageView : m_SwapchainImageViews)
-			vkDestroyImageView(m_Device, imageView, nullptr);
+			vkDestroyImageView(m_PhysicalDevice->GetLogicalDevice(), imageView, nullptr);
 
-		vkDestroySwapchainKHR(m_Device, m_Swapchain, nullptr);
-		vkDestroyDevice(m_Device, nullptr);
+		vkDestroySwapchainKHR(m_PhysicalDevice->GetLogicalDevice(), m_Swapchain, nullptr);
+		delete m_PhysicalDevice;
 		vkDestroySurfaceKHR(m_RenderContext->GetVulkanInstance(), m_Surface, nullptr);
 		delete m_RenderContext;
 
@@ -102,7 +96,7 @@ namespace LearningVulkan
 			m_Window->PollEvents();
 		}
 
-		vkDeviceWaitIdle(m_Device);
+		vkDeviceWaitIdle(m_PhysicalDevice->GetLogicalDevice());
 	}
 
 
@@ -111,9 +105,10 @@ namespace LearningVulkan
 		m_RenderContext = new RendererContext("Learning Vulkan");
 		SetupSurface();
 
-		m_PhysicalDevice = PickPhysicalDevice();
-		SetupLogicalDevice();
-		m_SwapchainDetails = QuerySwapChainSupport(m_PhysicalDevice);
+		//m_PhysicalDevice = 
+		//SetupLogicalDevice();
+		m_PhysicalDevice = new PhysicalDevice(PickPhysicalDevice());
+		m_SwapchainDetails = QuerySwapChainSupport(m_PhysicalDevice->GetPhysicalDevice());
 		m_SurfaceFormat = ChooseCorrectSurfaceFormat(m_SwapchainDetails.SurfaceFormats);
 		CreateRenderPass();
 		CreateSwapchain();
@@ -163,12 +158,12 @@ namespace LearningVulkan
 		if (deviceProperties.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU)
 			score++;
 
-		QueueFamilyIndices queueFamilyIndices = FindQueueFamilies(physicalDevice);
+		const QueueFamilyIndices& queueFamilyIndices = FindQueueFamilies(physicalDevice);
 		if (!queueFamilyIndices.GraphicsFamily.has_value())
 			score = 0;
 
-		if (!queueFamilyIndices.PresentationFamily.has_value())
-			score = 0;
+		/*if (!queueFamilyIndices.PresentationFamily.has_value())
+			score = 0;*/
 
 		if (!CheckDeviceExtensionSupport(physicalDevice))
 			score = 0;
@@ -181,6 +176,7 @@ namespace LearningVulkan
 
 		return score;
 	}
+
 	QueueFamilyIndices Application::FindQueueFamilies(VkPhysicalDevice physicalDevice)
 	{
 		QueueFamilyIndices queueFamilyIndices;
@@ -197,59 +193,59 @@ namespace LearningVulkan
 			if (queueFamily.queueFlags & VK_QUEUE_GRAPHICS_BIT)
 				queueFamilyIndices.GraphicsFamily = familyIndex;
 
-			VkBool32 presentationSupport = VK_FALSE;
+			/*VkBool32 presentationSupport = VK_FALSE;
 			vkGetPhysicalDeviceSurfaceSupportKHR(physicalDevice, familyIndex, m_Surface, &presentationSupport);
 			if (presentationSupport)
-				queueFamilyIndices.PresentationFamily = familyIndex;
+				queueFamilyIndices.PresentationFamily = familyIndex;*/
 
 			familyIndex++;
 		}
 
 		return queueFamilyIndices;
 	}
-	void Application::SetupLogicalDevice()
-	{
-		QueueFamilyIndices indices = FindQueueFamilies(m_PhysicalDevice);
 
+	//void Application::SetupLogicalDevice()
+	//{
+	//	QueueFamilyIndices indices = FindQueueFamilies(m_PhysicalDevice);
 
-		std::vector<VkDeviceQueueCreateInfo> queueCreateInfos;
-		std::set<uint32_t> uniqueQueueIndices = { indices.GraphicsFamily.value(), indices.PresentationFamily.value() };
+	//	std::vector<VkDeviceQueueCreateInfo> queueCreateInfos;
+	//	std::set<uint32_t> uniqueQueueIndices = { indices.GraphicsFamily.value(), indices.PresentationFamily.value() };
 
-		for (const uint32_t queueIndex : uniqueQueueIndices)
-		{
-			VkDeviceQueueCreateInfo queueCreateInfo{};
+	//	for (const uint32_t queueIndex : uniqueQueueIndices)
+	//	{
+	//		VkDeviceQueueCreateInfo queueCreateInfo{};
 
-			queueCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
-			queueCreateInfo.queueCount = 1;
-			queueCreateInfo.queueFamilyIndex = queueIndex;
+	//		queueCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
+	//		queueCreateInfo.queueCount = 1;
+	//		queueCreateInfo.queueFamilyIndex = queueIndex;
 
-			float queuePriority = 1.0f;
-			queueCreateInfo.pQueuePriorities = &queuePriority;
-			queueCreateInfos.emplace_back(queueCreateInfo);
-		}
+	//		float queuePriority = 1.0f;
+	//		queueCreateInfo.pQueuePriorities = &queuePriority;
+	//		queueCreateInfos.emplace_back(queueCreateInfo);
+	//	}
 
-		VkPhysicalDeviceFeatures deviceFeatures{};
+	//	VkPhysicalDeviceFeatures deviceFeatures{};
 
-		VkDeviceCreateInfo deviceCreateInfo{};
-		deviceCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
-		deviceCreateInfo.enabledExtensionCount = s_DeviceExtensionsSize;
-		deviceCreateInfo.ppEnabledExtensionNames = s_DeviceExtensions.data();
+	//	VkDeviceCreateInfo deviceCreateInfo{};
+	//	deviceCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
+	//	deviceCreateInfo.enabledExtensionCount = s_DeviceExtensionsSize;
+	//	deviceCreateInfo.ppEnabledExtensionNames = s_DeviceExtensions.data();
 
-		deviceCreateInfo.enabledLayerCount = VulkanUtils::LayerCount;
-		deviceCreateInfo.ppEnabledLayerNames = VulkanUtils::Layers.data();
+	//	deviceCreateInfo.enabledLayerCount = VulkanUtils::LayerCount;
+	//	deviceCreateInfo.ppEnabledLayerNames = VulkanUtils::Layers.data();
 
-		deviceCreateInfo.pEnabledFeatures = &deviceFeatures;
+	//	deviceCreateInfo.pEnabledFeatures = &deviceFeatures;
 
-		deviceCreateInfo.pQueueCreateInfos = queueCreateInfos.data();
-		deviceCreateInfo.queueCreateInfoCount = queueCreateInfos.size();
+	//	deviceCreateInfo.pQueueCreateInfos = queueCreateInfos.data();
+	//	deviceCreateInfo.queueCreateInfoCount = queueCreateInfos.size();
 
-		assert(vkCreateDevice(m_PhysicalDevice, &deviceCreateInfo, nullptr, &m_Device) == VK_SUCCESS);
+	//	assert(vkCreateDevice(m_PhysicalDevice, &deviceCreateInfo, nullptr, &m_Device) == VK_SUCCESS);
 
-		// the queue index is zero as we're creating only one queue from this family
-		vkGetDeviceQueue(m_Device, indices.GraphicsFamily.value(), 0, &m_GraphicsQueue);
+	//	// the queue index is zero as we're creating only one queue from this family
+	//	vkGetDeviceQueue(m_Device, indices.GraphicsFamily.value(), 0, &m_GraphicsQueue);
 
-		vkGetDeviceQueue(m_Device, indices.PresentationFamily.value(), 0, &m_PresentQueue);
-	}
+	//	vkGetDeviceQueue(m_Device, indices.PresentationFamily.value(), 0, &m_PresentQueue);
+	//}
 
 	void Application::SetupSurface()
 	{
@@ -272,7 +268,7 @@ namespace LearningVulkan
 		std::vector<VkExtensionProperties> extensionProperties(extensionCount);
 		vkEnumerateDeviceExtensionProperties(physicalDevice, nullptr, &extensionCount, extensionProperties.data());
 
-		std::set<std::string> requiredExtensions(s_DeviceExtensions.begin(), s_DeviceExtensions.end());
+		std::set<std::string> requiredExtensions(VulkanUtils::DeviceExtensions.begin(), VulkanUtils::DeviceExtensions.end());
 
 		for (const auto& extension : extensionProperties)
 			requiredExtensions.erase(extension.extensionName);
@@ -332,7 +328,7 @@ namespace LearningVulkan
 
 	void Application::CreateSwapchain()
 	{
-		m_SwapchainDetails = QuerySwapChainSupport(m_PhysicalDevice);
+		m_SwapchainDetails = QuerySwapChainSupport(m_PhysicalDevice->GetPhysicalDevice());
 		VkPresentModeKHR presentMode = ChooseSurfacePresentMode(m_SwapchainDetails.PresentModes);
 		VkExtent2D framebufferExtent = ChooseSwapchainExtent(m_SwapchainDetails.SurfaceCapabilities);
 
@@ -353,11 +349,11 @@ namespace LearningVulkan
 		swapchainCreateInfo.imageArrayLayers = 1;
 		swapchainCreateInfo.minImageCount = minImageCount;
 
-		QueueFamilyIndices queueFamilyIndices = FindQueueFamilies(m_PhysicalDevice);
+		const QueueFamilyIndices& queueFamilyIndices = m_PhysicalDevice->GetQueueFamilyIndices();
 
-		uint32_t indices[] = { queueFamilyIndices.GraphicsFamily.value(), queueFamilyIndices.PresentationFamily.value() };
+		//uint32_t indices[] = { queueFamilyIndices.GraphicsFamily.value(), queueFamilyIndices.PresentationFamily.value() };
 
-		if (queueFamilyIndices.GraphicsFamily != queueFamilyIndices.PresentationFamily) 
+		/*if (queueFamilyIndices.GraphicsFamily != queueFamilyIndices.PresentationFamily) 
 		{
 			swapchainCreateInfo.imageSharingMode = VK_SHARING_MODE_CONCURRENT;
 			swapchainCreateInfo.queueFamilyIndexCount = 2;
@@ -368,22 +364,24 @@ namespace LearningVulkan
 			swapchainCreateInfo.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
 			swapchainCreateInfo.queueFamilyIndexCount = 1;
 			swapchainCreateInfo.pQueueFamilyIndices = &queueFamilyIndices.GraphicsFamily.value();
-		}
+		}*/
+
+		swapchainCreateInfo.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
 
 		swapchainCreateInfo.preTransform = m_SwapchainDetails.SurfaceCapabilities.currentTransform;
 		swapchainCreateInfo.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
 		swapchainCreateInfo.clipped = VK_TRUE;
 		swapchainCreateInfo.oldSwapchain = oldSwapchain;
 
-		assert(vkCreateSwapchainKHR(m_Device, &swapchainCreateInfo, nullptr, &m_Swapchain) == VK_SUCCESS);
+		assert(vkCreateSwapchainKHR(m_PhysicalDevice->GetLogicalDevice(), &swapchainCreateInfo, nullptr, &m_Swapchain) == VK_SUCCESS);
 
 		if (oldSwapchain != VK_NULL_HANDLE)
 			DestroySwapchain(oldSwapchain);
 
 		uint32_t imageCount;
-		vkGetSwapchainImagesKHR(m_Device, m_Swapchain, &imageCount, nullptr);
+		vkGetSwapchainImagesKHR(m_PhysicalDevice->GetLogicalDevice(), m_Swapchain, &imageCount, nullptr);
 		m_SwapchainImages.resize(imageCount);
-		vkGetSwapchainImagesKHR(m_Device, m_Swapchain, &imageCount, m_SwapchainImages.data());
+		vkGetSwapchainImagesKHR(m_PhysicalDevice->GetLogicalDevice(), m_Swapchain, &imageCount, m_SwapchainImages.data());
 
 		m_SwapchainImagesExtent = framebufferExtent;
 
@@ -411,7 +409,7 @@ namespace LearningVulkan
 			imageViewCreateInfo.subresourceRange.levelCount = 1;
 			imageViewCreateInfo.subresourceRange.baseArrayLayer = 0;
 			imageViewCreateInfo.subresourceRange.layerCount = 1;
-			assert(vkCreateImageView(m_Device, &imageViewCreateInfo, nullptr, &m_SwapchainImageViews.at(i)) == VK_SUCCESS);
+			assert(vkCreateImageView(m_PhysicalDevice->GetLogicalDevice(), &imageViewCreateInfo, nullptr, &m_SwapchainImageViews.at(i)) == VK_SUCCESS);
 		}
 	}
 
@@ -453,7 +451,7 @@ namespace LearningVulkan
 		renderPassCreateInfo.dependencyCount = 1;
 		renderPassCreateInfo.pDependencies = &subpassDependency;
 
-		assert(vkCreateRenderPass(m_Device, &renderPassCreateInfo, nullptr, &m_RenderPass) == VK_SUCCESS);
+		assert(vkCreateRenderPass(m_PhysicalDevice->GetLogicalDevice(), &renderPassCreateInfo, nullptr, &m_RenderPass) == VK_SUCCESS);
 	}
 
 	void Application::CreateFramebuffers()
@@ -470,20 +468,20 @@ namespace LearningVulkan
 			framebufferCreateInfo.width = m_SwapchainImagesExtent.width;
 			framebufferCreateInfo.height = m_SwapchainImagesExtent.height;
 			framebufferCreateInfo.layers = 1;
-			assert(vkCreateFramebuffer(m_Device, &framebufferCreateInfo, nullptr, &m_Framebuffers.at(i)) == VK_SUCCESS);
+			assert(vkCreateFramebuffer(m_PhysicalDevice->GetLogicalDevice(), &framebufferCreateInfo, nullptr, &m_Framebuffers.at(i)) == VK_SUCCESS);
 		}
 	}
 
 	VkCommandPool Application::CreateCommandPool()
 	{
-		QueueFamilyIndices indices = FindQueueFamilies(m_PhysicalDevice);
+		const QueueFamilyIndices& indices = m_PhysicalDevice->GetQueueFamilyIndices();
 		VkCommandPoolCreateInfo commandPoolCreateInfo{};
 		commandPoolCreateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
 		commandPoolCreateInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
 		commandPoolCreateInfo.queueFamilyIndex = indices.GraphicsFamily.value();
 
 		VkCommandPool commandPool;
-		assert(vkCreateCommandPool(m_Device, &commandPoolCreateInfo, nullptr, &commandPool) == VK_SUCCESS);
+		assert(vkCreateCommandPool(m_PhysicalDevice->GetLogicalDevice(), &commandPoolCreateInfo, nullptr, &commandPool) == VK_SUCCESS);
 		return commandPool;
 	}
 
@@ -496,7 +494,7 @@ namespace LearningVulkan
 		commandBufferAllocateInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
 
 		VkCommandBuffer commandBuffer;
-		assert(vkAllocateCommandBuffers(m_Device, &commandBufferAllocateInfo, &commandBuffer) == VK_SUCCESS);
+		assert(vkAllocateCommandBuffers(m_PhysicalDevice->GetLogicalDevice(), &commandBufferAllocateInfo, &commandBuffer) == VK_SUCCESS);
 		return commandBuffer;
 	}
 
@@ -570,12 +568,12 @@ namespace LearningVulkan
 		VkSemaphoreCreateInfo semaphoreCreateInfo{};
 		semaphoreCreateInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
 		assert(vkCreateSemaphore(
-			m_Device,
+			m_PhysicalDevice->GetLogicalDevice(),
 			&semaphoreCreateInfo,
 			nullptr,
 			&swapchainImageAcquireSemaphore) == VK_SUCCESS);
 		assert(vkCreateSemaphore(
-			m_Device,
+			m_PhysicalDevice->GetLogicalDevice(),
 			&semaphoreCreateInfo,
 			nullptr,
 			&queueReadySemaphore) == VK_SUCCESS);
@@ -584,7 +582,7 @@ namespace LearningVulkan
 		fenceCreateInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
 
 		assert(vkCreateFence(
-			m_Device,
+			m_PhysicalDevice->GetLogicalDevice(),
 			&fenceCreateInfo,
 			nullptr,
 			&presentFence) == VK_SUCCESS);
@@ -610,7 +608,7 @@ namespace LearningVulkan
 		{
 			{
 				OPTICK_GPU_EVENT("Acquire swapchain image");
-				vkAcquireNextImageKHR(m_Device, m_Swapchain, UINT64_MAX, data.SwapchainImageAcquireSemaphore, VK_NULL_HANDLE, &imageIndex);
+				vkAcquireNextImageKHR(m_PhysicalDevice->GetLogicalDevice(), m_Swapchain, UINT64_MAX, data.SwapchainImageAcquireSemaphore, VK_NULL_HANDLE, &imageIndex);
 			}
 
 			vkResetCommandBuffer(data.CommandBuffer, 0);
@@ -628,7 +626,7 @@ namespace LearningVulkan
 			submitInfo.pSignalSemaphores = &data.QueueReadySemaphore;
 			{
 				OPTICK_GPU_EVENT("Queue submit");
-				assert(vkQueueSubmit(m_GraphicsQueue, 1, &submitInfo, data.PresentFence) == VK_SUCCESS);
+				assert(vkQueueSubmit(m_PhysicalDevice->GetGraphicsQueue(), 1, &submitInfo, data.PresentFence) == VK_SUCCESS);
 			}
 
 			VkPresentInfoKHR presentInfo{};
@@ -642,15 +640,16 @@ namespace LearningVulkan
 
 			{
 				OPTICK_GPU_EVENT("Queue Present KHR");
-				vkQueuePresentKHR(m_PresentQueue, &presentInfo);
+				//vkQueuePresentKHR(m_PresentQueue, &presentInfo);
+				vkQueuePresentKHR(m_PhysicalDevice->GetGraphicsQueue(), &presentInfo);
 			}
 
 			m_FrameIndex = (m_FrameIndex + 1) % m_PerFrameData.size();
 
 			{
 				OPTICK_EVENT("Wait and reset fence");
-				vkWaitForFences(m_Device, 1, &data.PresentFence, VK_TRUE, UINT64_MAX);
-				vkResetFences(m_Device, 1, &data.PresentFence);
+				vkWaitForFences(m_PhysicalDevice->GetLogicalDevice(), 1, &data.PresentFence, VK_TRUE, UINT64_MAX);
+				vkResetFences(m_PhysicalDevice->GetLogicalDevice(), 1, &data.PresentFence);
 			}
 		}
 	}
@@ -663,19 +662,19 @@ namespace LearningVulkan
 		shaderModuleCreateInfo.pCode = reinterpret_cast<const uint32_t*>(shaderData.data());
 
 		VkShaderModule shaderModule;
-		assert(vkCreateShaderModule(m_Device, &shaderModuleCreateInfo, nullptr, &shaderModule) == VK_SUCCESS);
+		assert(vkCreateShaderModule(m_PhysicalDevice->GetLogicalDevice(), &shaderModuleCreateInfo, nullptr, &shaderModule) == VK_SUCCESS);
 		return shaderModule;
 	}
 
 	void Application::DestroySwapchain(VkSwapchainKHR swapchain)
 	{
 		for (const auto& framebuffer : m_Framebuffers)
-			vkDestroyFramebuffer(m_Device, framebuffer, nullptr);
+			vkDestroyFramebuffer(m_PhysicalDevice->GetLogicalDevice(), framebuffer, nullptr);
 
 		for (const auto& imageView : m_SwapchainImageViews)
-			vkDestroyImageView(m_Device, imageView, nullptr);
+			vkDestroyImageView(m_PhysicalDevice->GetLogicalDevice(), imageView, nullptr);
 
-		vkDestroySwapchainKHR(m_Device, swapchain, nullptr);
+		vkDestroySwapchainKHR(m_PhysicalDevice->GetLogicalDevice(), swapchain, nullptr);
 	}
 
 	void Application::OnResize(uint32_t width, uint32_t height)
@@ -778,7 +777,7 @@ namespace LearningVulkan
 		VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo{};
 		pipelineLayoutCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
 
-		assert(vkCreatePipelineLayout(m_Device, &pipelineLayoutCreateInfo, nullptr, &m_PipelineLayout) == VK_SUCCESS);
+		assert(vkCreatePipelineLayout(m_PhysicalDevice->GetLogicalDevice(), &pipelineLayoutCreateInfo, nullptr, &m_PipelineLayout) == VK_SUCCESS);
 
 		VkGraphicsPipelineCreateInfo graphicsPipelineCreateInfo{};
 		graphicsPipelineCreateInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
@@ -797,11 +796,11 @@ namespace LearningVulkan
 		graphicsPipelineCreateInfo.renderPass = m_RenderPass;
 		graphicsPipelineCreateInfo.subpass = 0;
 
-		assert(vkCreateGraphicsPipelines(m_Device, VK_NULL_HANDLE, 1, &graphicsPipelineCreateInfo, nullptr, &m_Pipeline) == VK_SUCCESS);
+		assert(vkCreateGraphicsPipelines(m_PhysicalDevice->GetLogicalDevice(), VK_NULL_HANDLE, 1, &graphicsPipelineCreateInfo, nullptr, &m_Pipeline) == VK_SUCCESS);
 
 
-		vkDestroyShaderModule(m_Device, fragmentShader, nullptr);
-		vkDestroyShaderModule(m_Device, vertexShader, nullptr);
+		vkDestroyShaderModule(m_PhysicalDevice->GetLogicalDevice(), fragmentShader, nullptr);
+		vkDestroyShaderModule(m_PhysicalDevice->GetLogicalDevice(), vertexShader, nullptr);
 	}
 
 	VkExtent2D Application::ChooseSwapchainExtent(const VkSurfaceCapabilitiesKHR& surfaceCapabilities)

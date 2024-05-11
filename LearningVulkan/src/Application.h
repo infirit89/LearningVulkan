@@ -2,6 +2,7 @@
 
 #include "Window.h"
 #include "RendererContext.h"
+#include "PhysicalDevice.h"
 
 #define VK_USE_PLATFORM_WIN32_KHR
 #include "vulkan/vulkan.h"
@@ -11,14 +12,14 @@
 
 namespace LearningVulkan 
 {
-	struct QueueFamilyIndices 
-	{
-		// using optional because vulkan can use any value of uint32_t even 0
-		std::optional<uint32_t> GraphicsFamily;
-		std::optional<uint32_t> PresentationFamily;
-	};
+	//struct QueueFamilyIndices 
+	//{
+	//	// using optional because vulkan can use any value of uint32_t even 0
+	//	std::optional<uint32_t> GraphicsFamily;
+	//	std::optional<uint32_t> PresentationFamily;
+	//};
 
-	struct SwapChainSupportDetails 
+	struct SwapChainSupportDetails
 	{
 		VkSurfaceCapabilitiesKHR SurfaceCapabilities;
 		std::vector<VkSurfaceFormatKHR> SurfaceFormats;
@@ -38,7 +39,7 @@ namespace LearningVulkan
 		VkPhysicalDevice PickPhysicalDevice();
 		uint32_t RateDeviceSuitability(VkPhysicalDevice physicalDevice);
 		QueueFamilyIndices FindQueueFamilies(VkPhysicalDevice physicalDevice);
-		void SetupLogicalDevice();
+		//void SetupLogicalDevice();
 		void SetupSurface();
 		bool CheckDeviceExtensionSupport(VkPhysicalDevice physicalDevice);
 		SwapChainSupportDetails QuerySwapChainSupport(VkPhysicalDevice physicalDevice);
@@ -65,12 +66,13 @@ namespace LearningVulkan
 	private:
 		Window* m_Window;
 		RendererContext* m_RenderContext;
+		PhysicalDevice* m_PhysicalDevice;
 
-		VkPhysicalDevice m_PhysicalDevice = VK_NULL_HANDLE;
-		VkDevice m_Device;
+		//VkPhysicalDevice m_PhysicalDevice = VK_NULL_HANDLE;
+		//VkDevice m_Device;
 
-		VkQueue m_GraphicsQueue;
-		VkQueue m_PresentQueue;
+		/*VkQueue m_GraphicsQueue;
+		VkQueue m_PresentQueue;*/
 
 		VkSurfaceKHR m_Surface;
 		VkSwapchainKHR m_Swapchain = VK_NULL_HANDLE;

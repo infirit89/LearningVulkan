@@ -105,6 +105,7 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClInclude Include="src\Application.h" />
+    <ClInclude Include="src\PhysicalDevice.h" />
     <ClInclude Include="src\RendererContext.h" />
     <ClInclude Include="src\VulkanUtils.h" />
     <ClInclude Include="src\Window.h" />
@@ -112,6 +113,7 @@
   <ItemGroup>
     <ClCompile Include="src\Application.cpp" />
     <ClCompile Include="src\Main.cpp" />
+    <ClCompile Include="src\PhysicalDevice.cpp" />
     <ClCompile Include="src\RendererContext.cpp" />
     <ClCompile Include="src\Window.cpp" />
   </ItemGroup>
