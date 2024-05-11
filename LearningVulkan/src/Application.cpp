@@ -95,11 +95,11 @@ namespace LearningVulkan
 			currentFrameTime = glfwGetTime();
 			float deltaTime = currentFrameTime - lastFrameTime;
 			lastFrameTime = currentFrameTime;
-			m_Window->PollEvents();
-			DrawFrame();
 
-			//std::cout << 1 / deltaTime << '\n';
-			//std::cout << m_FrameIndex << '\n';
+			if(!m_Minimized)
+				DrawFrame();
+
+			m_Window->PollEvents();
 		}
 
 		vkDeviceWaitIdle(m_Device);
@@ -113,6 +113,9 @@ namespace LearningVulkan
 
 		m_PhysicalDevice = PickPhysicalDevice();
 		SetupLogicalDevice();
+		m_SwapchainDetails = QuerySwapChainSupport(m_PhysicalDevice);
+		m_SurfaceFormat = ChooseCorrectSurfaceFormat(m_SwapchainDetails.SurfaceFormats);
+		CreateRenderPass();
 		CreateSwapchain();
 		m_PerFrameData.resize(m_SwapchainImages.size());
 		for (uint32_t i = 0; i < m_SwapchainImages.size(); i++)
@@ -329,15 +332,13 @@ namespace LearningVulkan
 
 	void Application::CreateSwapchain()
 	{
-		SwapChainSupportDetails swapchainDetails = QuerySwapChainSupport(m_PhysicalDevice);
+		m_SwapchainDetails = QuerySwapChainSupport(m_PhysicalDevice);
+		VkPresentModeKHR presentMode = ChooseSurfacePresentMode(m_SwapchainDetails.PresentModes);
+		VkExtent2D framebufferExtent = ChooseSwapchainExtent(m_SwapchainDetails.SurfaceCapabilities);
 
-		VkSurfaceFormatKHR surfaceFormat = ChooseCorrectSurfaceFormat(swapchainDetails.SurfaceFormats);
-		VkPresentModeKHR presentMode = ChooseSurfacePresentMode(swapchainDetails.PresentModes);
-		VkExtent2D framebufferExtent = ChooseSwapchainExtent(swapchainDetails.SurfaceCapabilities);
-
-		uint32_t minImageCount = swapchainDetails.SurfaceCapabilities.minImageCount + 1;
-		if (swapchainDetails.SurfaceCapabilities.maxImageCount > 0 && minImageCount > swapchainDetails.SurfaceCapabilities.maxImageCount)
-			minImageCount = swapchainDetails.SurfaceCapabilities.maxImageCount;
+		uint32_t minImageCount = m_SwapchainDetails.SurfaceCapabilities.minImageCount + 1;
+		if (m_SwapchainDetails.SurfaceCapabilities.maxImageCount > 0 && minImageCount > m_SwapchainDetails.SurfaceCapabilities.maxImageCount)
+			minImageCount = m_SwapchainDetails.SurfaceCapabilities.maxImageCount;
 
 		VkSwapchainKHR oldSwapchain = m_Swapchain;
 
@@ -345,8 +346,8 @@ namespace LearningVulkan
 		swapchainCreateInfo.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
 		swapchainCreateInfo.imageExtent = framebufferExtent;
 		swapchainCreateInfo.presentMode = presentMode;
-		swapchainCreateInfo.imageFormat = surfaceFormat.format;
-		swapchainCreateInfo.imageColorSpace = surfaceFormat.colorSpace;
+		swapchainCreateInfo.imageFormat = m_SurfaceFormat.format;
+		swapchainCreateInfo.imageColorSpace = m_SurfaceFormat.colorSpace;
 		swapchainCreateInfo.surface = m_Surface;
 		swapchainCreateInfo.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
 		swapchainCreateInfo.imageArrayLayers = 1;
@@ -369,7 +370,7 @@ namespace LearningVulkan
 			swapchainCreateInfo.pQueueFamilyIndices = &queueFamilyIndices.GraphicsFamily.value();
 		}
 
-		swapchainCreateInfo.preTransform = swapchainDetails.SurfaceCapabilities.currentTransform;
+		swapchainCreateInfo.preTransform = m_SwapchainDetails.SurfaceCapabilities.currentTransform;
 		swapchainCreateInfo.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
 		swapchainCreateInfo.clipped = VK_TRUE;
 		swapchainCreateInfo.oldSwapchain = oldSwapchain;
@@ -384,11 +385,9 @@ namespace LearningVulkan
 		m_SwapchainImages.resize(imageCount);
 		vkGetSwapchainImagesKHR(m_Device, m_Swapchain, &imageCount, m_SwapchainImages.data());
 
-		m_SwapchainFormat = surfaceFormat.format;
 		m_SwapchainImagesExtent = framebufferExtent;
 
 		CreateImageViews();
-		CreateRenderPass();
 		CreateFramebuffers();
 	}
 
@@ -402,7 +401,7 @@ namespace LearningVulkan
 			imageViewCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
 			imageViewCreateInfo.image = m_SwapchainImages.at(i);
 			imageViewCreateInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
-			imageViewCreateInfo.format = m_SwapchainFormat;
+			imageViewCreateInfo.format = m_SurfaceFormat.format;
 			imageViewCreateInfo.components.r = VK_COMPONENT_SWIZZLE_IDENTITY;
 			imageViewCreateInfo.components.g = VK_COMPONENT_SWIZZLE_IDENTITY;
 			imageViewCreateInfo.components.b = VK_COMPONENT_SWIZZLE_IDENTITY;
@@ -419,7 +418,7 @@ namespace LearningVulkan
 	void Application::CreateRenderPass()
 	{
 		VkAttachmentDescription colorAttachment{};
-		colorAttachment.format = m_SwapchainFormat;
+		colorAttachment.format = m_SurfaceFormat.format;
 		colorAttachment.samples = VK_SAMPLE_COUNT_1_BIT;
 		colorAttachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
 		colorAttachment.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
@@ -679,9 +678,15 @@ namespace LearningVulkan
 		vkDestroySwapchainKHR(m_Device, swapchain, nullptr);
 	}
 
-	void Application::OnResize(uint32_t, uint32_t)
+	void Application::OnResize(uint32_t width, uint32_t height)
 	{
-		vkDeviceWaitIdle(m_Device);
+		if (width == 0 || height == 0) 
+		{
+			m_Minimized = true;
+			return;
+		}
+
+		m_Minimized = false;
 		CreateSwapchain();
 	}
 

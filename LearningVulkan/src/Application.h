@@ -76,7 +76,7 @@ namespace LearningVulkan
 		VkSwapchainKHR m_Swapchain = VK_NULL_HANDLE;
 		std::vector<VkImage> m_SwapchainImages;
 		std::vector<VkImageView> m_SwapchainImageViews;
-		VkFormat m_SwapchainFormat;
+		VkSurfaceFormatKHR m_SurfaceFormat;
 		VkExtent2D m_SwapchainImagesExtent;
 		VkRenderPass m_RenderPass;
 		std::vector<VkFramebuffer> m_Framebuffers;
@@ -94,6 +94,8 @@ namespace LearningVulkan
 
 		std::vector<PerFrameData> m_PerFrameData;
 		uint32_t m_FrameIndex = 0;
+		SwapChainSupportDetails m_SwapchainDetails;
+		bool m_Minimized = false;
 	};
 }
 
