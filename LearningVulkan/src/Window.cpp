@@ -15,6 +15,13 @@ namespace LearningVulkan
         m_Window = glfwCreateWindow(width, height, title, nullptr, nullptr);
 
         assert(m_Window);
+        glfwSetWindowUserPointer(m_Window, &m_ResizeFn);
+
+        glfwSetFramebufferSizeCallback(m_Window, [](GLFWwindow* window, int width, int height)
+        {
+            ResizeFn callback = *static_cast<ResizeFn*>(glfwGetWindowUserPointer(window));
+            callback(width, height);
+        });
     }
 
     Window::~Window()

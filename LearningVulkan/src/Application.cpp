@@ -12,6 +12,7 @@
 #include <algorithm>
 #include <filesystem>
 #include <fstream>
+#include <memory>
 
 #define GLFW_EXPOSE_NATIVE_WIN32
 #include <GLFW/glfw3native.h>
@@ -43,16 +44,28 @@ namespace LearningVulkan
 	Application::Application()
 	{
 		m_Window = new Window(640, 480, "i cum hard uwu");
+
+		m_Window->SetResizeFn(std::bind(&Application::OnResize, this, std::placeholders::_1, std::placeholders::_2));
 		SetupRenderer();
 	}
 
 	Application::~Application()
 	{
-		vkDestroySemaphore(m_Device, m_SwapchainImageAvailableSemaphore, nullptr);
-		vkDestroySemaphore(m_Device, m_FinishedRenderingSemaphore, nullptr);
-		vkDestroyFence(m_Device, m_InFlightFence, nullptr);
-		vkFreeCommandBuffers(m_Device, m_CommandPool, 1, &m_CommandBuffer);
-		vkDestroyCommandPool(m_Device, m_CommandPool, nullptr);
+		for (const auto& data : m_PerFrameData)
+		{
+			vkDestroySemaphore(
+				m_Device,
+				data.SwapchainImageAcquireSemaphore,
+				nullptr);
+			vkDestroySemaphore(
+				m_Device,
+				data.QueueReadySemaphore,
+				nullptr);
+			vkDestroyFence(m_Device, data.PresentFence, nullptr);
+			vkFreeCommandBuffers(
+				m_Device, data.CommandPool, 1, &data.CommandBuffer);
+			vkDestroyCommandPool(m_Device, data.CommandPool, nullptr);
+		}
 
 		vkDestroyPipeline(m_Device, m_Pipeline, nullptr);
 		vkDestroyPipelineLayout(m_Device, m_PipelineLayout, nullptr);
@@ -86,6 +99,7 @@ namespace LearningVulkan
 			DrawFrame();
 
 			//std::cout << 1 / deltaTime << '\n';
+			//std::cout << m_FrameIndex << '\n';
 		}
 
 		vkDeviceWaitIdle(m_Device);
@@ -100,13 +114,11 @@ namespace LearningVulkan
 		m_PhysicalDevice = PickPhysicalDevice();
 		SetupLogicalDevice();
 		CreateSwapchain();
-		CreateImageViews();
-		CreateRenderPass();
+		m_PerFrameData.resize(m_SwapchainImages.size());
+		for (uint32_t i = 0; i < m_SwapchainImages.size(); i++)
+			CreatePerFrameObjects(i);
+
 		CreateGraphicsPipeline();
-		CreateFramebuffers();
-		CreateCommandPool();
-		AllocateCommandBuffer();
-		CreateSyncObjects();
 	}
 
 	VkPhysicalDevice Application::PickPhysicalDevice()
@@ -327,6 +339,8 @@ namespace LearningVulkan
 		if (swapchainDetails.SurfaceCapabilities.maxImageCount > 0 && minImageCount > swapchainDetails.SurfaceCapabilities.maxImageCount)
 			minImageCount = swapchainDetails.SurfaceCapabilities.maxImageCount;
 
+		VkSwapchainKHR oldSwapchain = m_Swapchain;
+
 		VkSwapchainCreateInfoKHR swapchainCreateInfo{};
 		swapchainCreateInfo.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
 		swapchainCreateInfo.imageExtent = framebufferExtent;
@@ -358,9 +372,12 @@ namespace LearningVulkan
 		swapchainCreateInfo.preTransform = swapchainDetails.SurfaceCapabilities.currentTransform;
 		swapchainCreateInfo.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
 		swapchainCreateInfo.clipped = VK_TRUE;
-		swapchainCreateInfo.oldSwapchain = VK_NULL_HANDLE;
+		swapchainCreateInfo.oldSwapchain = oldSwapchain;
 
 		assert(vkCreateSwapchainKHR(m_Device, &swapchainCreateInfo, nullptr, &m_Swapchain) == VK_SUCCESS);
+
+		if (oldSwapchain != VK_NULL_HANDLE)
+			DestroySwapchain(oldSwapchain);
 
 		uint32_t imageCount;
 		vkGetSwapchainImagesKHR(m_Device, m_Swapchain, &imageCount, nullptr);
@@ -369,6 +386,10 @@ namespace LearningVulkan
 
 		m_SwapchainFormat = surfaceFormat.format;
 		m_SwapchainImagesExtent = framebufferExtent;
+
+		CreateImageViews();
+		CreateRenderPass();
+		CreateFramebuffers();
 	}
 
 	void Application::CreateImageViews()
@@ -454,7 +475,7 @@ namespace LearningVulkan
 		}
 	}
 
-	void Application::CreateCommandPool()
+	VkCommandPool Application::CreateCommandPool()
 	{
 		QueueFamilyIndices indices = FindQueueFamilies(m_PhysicalDevice);
 		VkCommandPoolCreateInfo commandPoolCreateInfo{};
@@ -462,29 +483,32 @@ namespace LearningVulkan
 		commandPoolCreateInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
 		commandPoolCreateInfo.queueFamilyIndex = indices.GraphicsFamily.value();
 
-		assert(vkCreateCommandPool(m_Device, &commandPoolCreateInfo, nullptr, &m_CommandPool) == VK_SUCCESS);
+		VkCommandPool commandPool;
+		assert(vkCreateCommandPool(m_Device, &commandPoolCreateInfo, nullptr, &commandPool) == VK_SUCCESS);
+		return commandPool;
 	}
 
-	void Application::AllocateCommandBuffer()
+	VkCommandBuffer Application::AllocateCommandBuffer(VkCommandPool commandPool)
 	{
 		VkCommandBufferAllocateInfo commandBufferAllocateInfo{};
 		commandBufferAllocateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
 		commandBufferAllocateInfo.commandBufferCount = 1;
-		commandBufferAllocateInfo.commandPool = m_CommandPool;
+		commandBufferAllocateInfo.commandPool = commandPool;
 		commandBufferAllocateInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
 
-		assert(vkAllocateCommandBuffers(m_Device, &commandBufferAllocateInfo, &m_CommandBuffer) == VK_SUCCESS);
+		VkCommandBuffer commandBuffer;
+		assert(vkAllocateCommandBuffers(m_Device, &commandBufferAllocateInfo, &commandBuffer) == VK_SUCCESS);
+		return commandBuffer;
 	}
 
-	void Application::RecordCommandBuffer(uint32_t imageIndex)
+	void Application::RecordCommandBuffer(uint32_t imageIndex, VkCommandBuffer commandBuffer)
 	{
-		OPTICK_EVENT();
 		VkCommandBufferBeginInfo commandBufferBeginInfo{};
 		commandBufferBeginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
 		
-		assert(vkBeginCommandBuffer(m_CommandBuffer, &commandBufferBeginInfo) == VK_SUCCESS);
+		assert(vkBeginCommandBuffer(commandBuffer, &commandBufferBeginInfo) == VK_SUCCESS);
 
-		OPTICK_GPU_CONTEXT(m_CommandBuffer);
+		OPTICK_GPU_CONTEXT(commandBuffer);
 		OPTICK_GPU_EVENT("Draw Triangle");
 
 		VkRenderPassBeginInfo renderPassBeginInfo{};
@@ -499,102 +523,136 @@ namespace LearningVulkan
 		renderPassBeginInfo.pClearValues = &clearValues;
 		{
 			OPTICK_GPU_EVENT("Begin render pass");
-			vkCmdBeginRenderPass(m_CommandBuffer, &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
+			vkCmdBeginRenderPass(commandBuffer, &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
+		}
+		{
+			OPTICK_GPU_EVENT("Bind graphics pipeline");
+			vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_Pipeline);
 		}
 
 		{
-			OPTICK_GPU_EVENT("Bind pipeline");
-			vkCmdBindPipeline(m_CommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_Pipeline);
+			OPTICK_GPU_EVENT("Set viewport state");
+			VkViewport viewport{};
+			viewport.x = 0.0f;
+			viewport.y = 0.0f;
+			viewport.width = m_SwapchainImagesExtent.width;
+			viewport.height = m_SwapchainImagesExtent.height;
+			viewport.minDepth = 0.0f;
+			viewport.maxDepth = 1.0f;
+
+			vkCmdSetViewport(commandBuffer, 0, 1, &viewport);
 		}
 
-		VkViewport viewport{};
-		viewport.x = 0.0f;
-		viewport.y = 0.0f;
-		viewport.width = m_SwapchainImagesExtent.width;
-		viewport.height = m_SwapchainImagesExtent.height;
-		viewport.minDepth = 0.0f;
-		viewport.maxDepth = 1.0f;
-
 		{
-			OPTICK_GPU_EVENT("Set viewport");
-			vkCmdSetViewport(m_CommandBuffer, 0, 1, &viewport);
+			OPTICK_GPU_EVENT("Set scissor state");
+			VkRect2D scissorRect{};
+			scissorRect.offset = { 0, 0 };
+			scissorRect.extent = m_SwapchainImagesExtent;
+			vkCmdSetScissor(commandBuffer, 0, 1, &scissorRect);
 		}
-
-		VkRect2D scissorRect{};
-		scissorRect.offset = { 0, 0 };
-		scissorRect.extent = m_SwapchainImagesExtent;
-
+		
 		{
-			OPTICK_GPU_EVENT("Set Scissor");
-			vkCmdSetScissor(m_CommandBuffer, 0, 1, &scissorRect);
-		}
-
-
-		{
-			OPTICK_GPU_EVENT("Cmd Draw");
-			vkCmdDraw(m_CommandBuffer, 3, 1, 0, 0);
+			OPTICK_GPU_EVENT("Draw");
+			vkCmdDraw(commandBuffer, 3, 1, 0, 0);
 		}
 
 		{
 			OPTICK_GPU_EVENT("End render pass");
-			vkCmdEndRenderPass(m_CommandBuffer);
+			vkCmdEndRenderPass(commandBuffer);
 		}
 
-		assert(vkEndCommandBuffer(m_CommandBuffer) == VK_SUCCESS);
+		assert(vkEndCommandBuffer(commandBuffer) == VK_SUCCESS);
 	}
 
-	void Application::CreateSyncObjects()
+	void Application::CreateSyncObjects(
+		VkSemaphore& swapchainImageAcquireSemaphore,
+		VkSemaphore& queueReadySemaphore, VkFence& presentFence)
 	{
 		VkSemaphoreCreateInfo semaphoreCreateInfo{};
 		semaphoreCreateInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
-		assert(vkCreateSemaphore(m_Device, &semaphoreCreateInfo, nullptr, &m_SwapchainImageAvailableSemaphore) == VK_SUCCESS);
-		assert(vkCreateSemaphore(m_Device, &semaphoreCreateInfo, nullptr, &m_FinishedRenderingSemaphore) == VK_SUCCESS);
+		assert(vkCreateSemaphore(
+			m_Device,
+			&semaphoreCreateInfo,
+			nullptr,
+			&swapchainImageAcquireSemaphore) == VK_SUCCESS);
+		assert(vkCreateSemaphore(
+			m_Device,
+			&semaphoreCreateInfo,
+			nullptr,
+			&queueReadySemaphore) == VK_SUCCESS);
 
 		VkFenceCreateInfo fenceCreateInfo{};
 		fenceCreateInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
-		assert(vkCreateFence(m_Device, &fenceCreateInfo, nullptr, &m_InFlightFence) == VK_SUCCESS);
 
+		assert(vkCreateFence(
+			m_Device,
+			&fenceCreateInfo,
+			nullptr,
+			&presentFence) == VK_SUCCESS);
+	}
 
+	void Application::CreatePerFrameObjects(uint32_t frameIndex)
+	{
+		PerFrameData& data = m_PerFrameData.at(frameIndex);
+		data.CommandPool = CreateCommandPool();
+		data.CommandBuffer = AllocateCommandBuffer(data.CommandPool);
+
+		CreateSyncObjects(
+			data.SwapchainImageAcquireSemaphore,
+			data.QueueReadySemaphore,
+			data.PresentFence);
 	}
 
 	void Application::DrawFrame()
 	{
 		OPTICK_EVENT();
 		uint32_t imageIndex;
-		vkAcquireNextImageKHR(m_Device, m_Swapchain, UINT64_MAX, m_SwapchainImageAvailableSemaphore, VK_NULL_HANDLE, &imageIndex);
-		vkResetCommandBuffer(m_CommandBuffer, 0);
-		RecordCommandBuffer(imageIndex);
-		VkSubmitInfo submitInfo{};
-		submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-
-		VkPipelineStageFlags pipelineStageFlags = { VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };
-		submitInfo.waitSemaphoreCount = 1;
-		submitInfo.pWaitSemaphores = &m_SwapchainImageAvailableSemaphore;
-		submitInfo.pWaitDstStageMask = &pipelineStageFlags;
-		submitInfo.commandBufferCount = 1;
-		submitInfo.pCommandBuffers = &m_CommandBuffer;
-		submitInfo.signalSemaphoreCount = 1;
-		submitInfo.pSignalSemaphores = &m_FinishedRenderingSemaphore;
-		assert(vkQueueSubmit(m_GraphicsQueue, 1, &submitInfo, m_InFlightFence) == VK_SUCCESS);
-
-		VkPresentInfoKHR presentInfo{};
-		presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
-
-		presentInfo.waitSemaphoreCount = 1;
-		presentInfo.pWaitSemaphores = &m_FinishedRenderingSemaphore;
-		presentInfo.swapchainCount = 1;
-		presentInfo.pSwapchains = &m_Swapchain;
-		presentInfo.pImageIndices = &imageIndex;
-
+		PerFrameData& data = m_PerFrameData.at(m_FrameIndex);
 		{
-			OPTICK_EVENT("Queue present");
-			vkQueuePresentKHR(m_PresentQueue, &presentInfo);
-		}
+			{
+				OPTICK_GPU_EVENT("Acquire swapchain image");
+				vkAcquireNextImageKHR(m_Device, m_Swapchain, UINT64_MAX, data.SwapchainImageAcquireSemaphore, VK_NULL_HANDLE, &imageIndex);
+			}
 
-		{
-			OPTICK_EVENT("Wait for fences");
-			vkWaitForFences(m_Device, 1, &m_InFlightFence, VK_TRUE, UINT64_MAX);
-			vkResetFences(m_Device, 1, &m_InFlightFence);
+			vkResetCommandBuffer(data.CommandBuffer, 0);
+			RecordCommandBuffer(imageIndex, data.CommandBuffer);
+			VkSubmitInfo submitInfo{};
+			submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+
+			VkPipelineStageFlags pipelineStageFlags = { VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };
+			submitInfo.waitSemaphoreCount = 1;
+			submitInfo.pWaitSemaphores = &data.SwapchainImageAcquireSemaphore;
+			submitInfo.pWaitDstStageMask = &pipelineStageFlags;
+			submitInfo.commandBufferCount = 1;
+			submitInfo.pCommandBuffers = &data.CommandBuffer;
+			submitInfo.signalSemaphoreCount = 1;
+			submitInfo.pSignalSemaphores = &data.QueueReadySemaphore;
+			{
+				OPTICK_GPU_EVENT("Queue submit");
+				assert(vkQueueSubmit(m_GraphicsQueue, 1, &submitInfo, data.PresentFence) == VK_SUCCESS);
+			}
+
+			VkPresentInfoKHR presentInfo{};
+			presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
+
+			presentInfo.waitSemaphoreCount = 1;
+			presentInfo.pWaitSemaphores = &data.QueueReadySemaphore;
+			presentInfo.swapchainCount = 1;
+			presentInfo.pSwapchains = &m_Swapchain;
+			presentInfo.pImageIndices = &imageIndex;
+
+			{
+				OPTICK_GPU_EVENT("Queue Present KHR");
+				vkQueuePresentKHR(m_PresentQueue, &presentInfo);
+			}
+
+			m_FrameIndex = (m_FrameIndex + 1) % m_PerFrameData.size();
+
+			{
+				OPTICK_EVENT("Wait and reset fence");
+				vkWaitForFences(m_Device, 1, &data.PresentFence, VK_TRUE, UINT64_MAX);
+				vkResetFences(m_Device, 1, &data.PresentFence);
+			}
 		}
 	}
 
@@ -608,6 +666,23 @@ namespace LearningVulkan
 		VkShaderModule shaderModule;
 		assert(vkCreateShaderModule(m_Device, &shaderModuleCreateInfo, nullptr, &shaderModule) == VK_SUCCESS);
 		return shaderModule;
+	}
+
+	void Application::DestroySwapchain(VkSwapchainKHR swapchain)
+	{
+		for (const auto& framebuffer : m_Framebuffers)
+			vkDestroyFramebuffer(m_Device, framebuffer, nullptr);
+
+		for (const auto& imageView : m_SwapchainImageViews)
+			vkDestroyImageView(m_Device, imageView, nullptr);
+
+		vkDestroySwapchainKHR(m_Device, swapchain, nullptr);
+	}
+
+	void Application::OnResize(uint32_t, uint32_t)
+	{
+		vkDeviceWaitIdle(m_Device);
+		CreateSwapchain();
 	}
 
 	void Application::CreateGraphicsPipeline()

@@ -49,13 +49,18 @@ namespace LearningVulkan
 		void CreateImageViews();
 		void CreateRenderPass();
 		void CreateFramebuffers();
-		void CreateCommandPool();
-		void AllocateCommandBuffer();
-		void RecordCommandBuffer(uint32_t imageIndex);
-		void CreateSyncObjects();
+		VkCommandPool CreateCommandPool();
+
+		VkCommandBuffer AllocateCommandBuffer(VkCommandPool commandPool);
+		void RecordCommandBuffer(uint32_t imageIndex, VkCommandBuffer commandBuffer);
+		void CreateSyncObjects(VkSemaphore& swapchainImageAcquireSemaphore, VkSemaphore& queueReadySemaphore, VkFence& presentFence);
+
+		void CreatePerFrameObjects(uint32_t frameIndex);
 		void DrawFrame();
 		void CreateGraphicsPipeline();
 		VkShaderModule CreateShader(const std::vector<char>& shaderData);
+		void DestroySwapchain(VkSwapchainKHR swapchain);
+		void OnResize(uint32_t width, uint32_t height);
 
 	private:
 		Window* m_Window;
@@ -68,20 +73,27 @@ namespace LearningVulkan
 		VkQueue m_PresentQueue;
 
 		VkSurfaceKHR m_Surface;
-		VkSwapchainKHR m_Swapchain;
+		VkSwapchainKHR m_Swapchain = VK_NULL_HANDLE;
 		std::vector<VkImage> m_SwapchainImages;
 		std::vector<VkImageView> m_SwapchainImageViews;
 		VkFormat m_SwapchainFormat;
 		VkExtent2D m_SwapchainImagesExtent;
 		VkRenderPass m_RenderPass;
 		std::vector<VkFramebuffer> m_Framebuffers;
-		VkCommandPool m_CommandPool;
-		VkCommandBuffer m_CommandBuffer;
-		VkSemaphore m_SwapchainImageAvailableSemaphore;
-		VkSemaphore m_FinishedRenderingSemaphore;
-		VkFence m_InFlightFence;
 		VkPipelineLayout m_PipelineLayout;
 		VkPipeline m_Pipeline;
+
+		struct PerFrameData
+		{
+			VkCommandBuffer CommandBuffer;
+			VkCommandPool CommandPool;
+			VkFence PresentFence;
+			VkSemaphore SwapchainImageAcquireSemaphore;
+			VkSemaphore QueueReadySemaphore;
+		};
+
+		std::vector<PerFrameData> m_PerFrameData;
+		uint32_t m_FrameIndex = 0;
 	};
 }
 
