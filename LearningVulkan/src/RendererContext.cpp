@@ -1,17 +1,24 @@
 #include "RendererContext.h"
-
 #include "VulkanUtils.h"
+#include "Application.h"
 
 #include <GLFW/glfw3.h>
+
+#define GLFW_EXPOSE_NATIVE_WIN32
+#include <GLFW/glfw3native.h>
 
 #include <array>
 #include <set>
 #include <algorithm>
 #include <cassert>
 #include <iostream>
+#include <map>
 
 namespace LearningVulkan
 {
+	VkInstance RendererContext::m_Instance;
+	VkSurfaceKHR RendererContext::m_Surface;
+
 	static VkBool32 VKAPI_CALL DebugCallback(VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity, VkDebugUtilsMessageTypeFlagsEXT messageType,
 		const VkDebugUtilsMessengerCallbackDataEXT* callbackData, void* userData)
 	{
@@ -70,10 +77,16 @@ namespace LearningVulkan
 	{
 		CreateVulkanInstance(applicationName);
 		SetupDebugMessenger();
+		CreateSurface();
+
+		m_PhysicalDevice = PhysicalDevice::GetSuitablePhysicalDevice();
 	}
 
 	RendererContext::~RendererContext()
 	{
+		delete m_PhysicalDevice;
+
+		vkDestroySurfaceKHR(m_Instance, m_Surface, nullptr);
 		DestroyDebugUtilsMessanger(m_Instance, m_DebugMessenger, nullptr);
 		vkDestroyInstance(m_Instance, nullptr);
 	}
@@ -134,5 +147,11 @@ namespace LearningVulkan
 		VkDebugUtilsMessengerCreateInfoEXT debugMessengerCreateInfo{};
 		SetupDebugUtilsMessengerCreateInfo(debugMessengerCreateInfo);
 		assert(CreateDebugUtilsMessanger(m_Instance, &debugMessengerCreateInfo, nullptr, &m_DebugMessenger) == VK_SUCCESS);
+	}
+
+	void RendererContext::CreateSurface()
+	{
+		const Window* window = Application::Get()->GetWindow();
+		assert(glfwCreateWindowSurface(m_Instance, window->GetNativeWindow(), nullptr, &m_Surface) == VK_SUCCESS);
 	}
 }

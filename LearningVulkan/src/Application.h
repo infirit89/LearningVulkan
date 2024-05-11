@@ -12,20 +12,6 @@
 
 namespace LearningVulkan 
 {
-	//struct QueueFamilyIndices 
-	//{
-	//	// using optional because vulkan can use any value of uint32_t even 0
-	//	std::optional<uint32_t> GraphicsFamily;
-	//	std::optional<uint32_t> PresentationFamily;
-	//};
-
-	struct SwapChainSupportDetails
-	{
-		VkSurfaceCapabilitiesKHR SurfaceCapabilities;
-		std::vector<VkSurfaceFormatKHR> SurfaceFormats;
-		std::vector<VkPresentModeKHR> PresentModes;
-	};
-
 	class Application 
 	{
 	public:
@@ -34,15 +20,14 @@ namespace LearningVulkan
 
 		void Run();
 
+		static Application* Get() { return m_Instance; }
+		const RendererContext* GetRenderContext() const { return m_RenderContext; }
+		const Window* GetWindow() const { return m_Window; }
+
 	private:
 		void SetupRenderer();
-		VkPhysicalDevice PickPhysicalDevice();
-		uint32_t RateDeviceSuitability(VkPhysicalDevice physicalDevice);
 		QueueFamilyIndices FindQueueFamilies(VkPhysicalDevice physicalDevice);
 		//void SetupLogicalDevice();
-		void SetupSurface();
-		bool CheckDeviceExtensionSupport(VkPhysicalDevice physicalDevice);
-		SwapChainSupportDetails QuerySwapChainSupport(VkPhysicalDevice physicalDevice);
 		VkSurfaceFormatKHR ChooseCorrectSurfaceFormat(const std::vector<VkSurfaceFormatKHR>& surfaceFormats);
 		VkPresentModeKHR ChooseSurfacePresentMode(const std::vector<VkPresentModeKHR>& presentModes);
 		VkExtent2D ChooseSwapchainExtent(const VkSurfaceCapabilitiesKHR& surfaceCapabilities);
@@ -66,15 +51,6 @@ namespace LearningVulkan
 	private:
 		Window* m_Window;
 		RendererContext* m_RenderContext;
-		PhysicalDevice* m_PhysicalDevice;
-
-		//VkPhysicalDevice m_PhysicalDevice = VK_NULL_HANDLE;
-		//VkDevice m_Device;
-
-		/*VkQueue m_GraphicsQueue;
-		VkQueue m_PresentQueue;*/
-
-		VkSurfaceKHR m_Surface;
 		VkSwapchainKHR m_Swapchain = VK_NULL_HANDLE;
 		std::vector<VkImage> m_SwapchainImages;
 		std::vector<VkImageView> m_SwapchainImageViews;
@@ -98,6 +74,8 @@ namespace LearningVulkan
 		uint32_t m_FrameIndex = 0;
 		SwapChainSupportDetails m_SwapchainDetails;
 		bool m_Minimized = false;
+
+		static Application* m_Instance;
 	};
 }
 
