@@ -131,14 +131,22 @@ namespace LearningVulkan
 
 		std::multimap<uint32_t, VkPhysicalDevice> deviceCandidates;
 
+		std::cout << "Available devices:\n";
 		for (const auto& physicalDevice : physicalDevices) 
 		{
 			uint32_t score = RateDeviceSuitability(physicalDevice);
 			deviceCandidates.insert(std::make_pair(score, physicalDevice));
 		}
 
-		if (deviceCandidates.rbegin()->first > 0)
-			return deviceCandidates.rbegin()->second;
+		if (deviceCandidates.rbegin()->first > 0) 
+		{
+			VkPhysicalDevice pickedDevice = deviceCandidates.rbegin()->second;
+			VkPhysicalDeviceProperties deviceProperties;
+			vkGetPhysicalDeviceProperties(pickedDevice, &deviceProperties);
+			std::cout << "Picked device: " << deviceProperties.deviceName << '\n';
+
+			return pickedDevice;
+		}
 		else 
 		{
 			std::cerr << "No suitable device found" << '\n';
@@ -152,9 +160,8 @@ namespace LearningVulkan
 		vkGetPhysicalDeviceProperties(physicalDevice, &deviceProperties);
 
 
-		uint32_t score = 0;
+		uint32_t score = 1;
 
-		std::cout << deviceProperties.deviceName << '\n';
 		if (deviceProperties.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU)
 			score++;
 
@@ -174,6 +181,7 @@ namespace LearningVulkan
 				score = 0;
 		}
 
+		std::cout << '\t' << "Name: " << deviceProperties.deviceName << "; Score: " << score << '\n';
 		return score;
 	}
 
