@@ -14,10 +14,9 @@ namespace LearningVulkan
 	PhysicalDevice::PhysicalDevice(VkPhysicalDevice physicalDevice)
 	{
 		m_PhysicalDevice = physicalDevice;
-		SetupLogicalDevice();
 	}
 
-	void PhysicalDevice::SetupLogicalDevice()
+	LogicalDevice* PhysicalDevice::CreateLogicalDevice()
 	{
 		m_QueueFamilyIndices = FindQueueFamilyIndices(m_PhysicalDevice);
 
@@ -40,9 +39,11 @@ namespace LearningVulkan
 		deviceCreateInfo.enabledExtensionCount = VulkanUtils::DeviceExtensionsSize;
 		deviceCreateInfo.ppEnabledExtensionNames = VulkanUtils::DeviceExtensions.data();
 
-		assert(vkCreateDevice(m_PhysicalDevice, &deviceCreateInfo, nullptr, &m_Device) == VK_SUCCESS);
-
-		vkGetDeviceQueue(m_Device, m_QueueFamilyIndices.GraphicsFamily.value(), 0, &m_GraphicsQueue);
+		VkDevice device;
+		assert(vkCreateDevice(m_PhysicalDevice, &deviceCreateInfo, nullptr, &device) == VK_SUCCESS);
+		LogicalDevice* logicalDevice = new LogicalDevice(device);
+		vkGetDeviceQueue(device, m_QueueFamilyIndices.GraphicsFamily.value(), 0, &logicalDevice->m_GraphicsQueue);
+		return logicalDevice;
 	}
 
 	QueueFamilyIndices PhysicalDevice::FindQueueFamilyIndices(VkPhysicalDevice physicalDevice)
@@ -144,7 +145,6 @@ namespace LearningVulkan
 
 	PhysicalDevice::~PhysicalDevice()
 	{
-		vkDestroyDevice(m_Device, nullptr);
 	}
 
 	PhysicalDevice* PhysicalDevice::GetSuitablePhysicalDevice()

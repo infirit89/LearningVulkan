@@ -26,8 +26,6 @@ namespace LearningVulkan
 
 	private:
 		void SetupRenderer();
-		QueueFamilyIndices FindQueueFamilies(VkPhysicalDevice physicalDevice);
-		//void SetupLogicalDevice();
 		VkSurfaceFormatKHR ChooseCorrectSurfaceFormat(const std::vector<VkSurfaceFormatKHR>& surfaceFormats);
 		VkPresentModeKHR ChooseSurfacePresentMode(const std::vector<VkPresentModeKHR>& presentModes);
 		VkExtent2D ChooseSwapchainExtent(const VkSurfaceCapabilitiesKHR& surfaceCapabilities);
@@ -78,4 +76,3 @@ namespace LearningVulkan
 		static Application* m_Instance;
 	};
 }
-

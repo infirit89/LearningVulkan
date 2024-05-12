@@ -80,10 +80,13 @@ namespace LearningVulkan
 		CreateSurface();
 
 		m_PhysicalDevice = PhysicalDevice::GetSuitablePhysicalDevice();
+		assert(m_PhysicalDevice != nullptr);
+		m_LogicalDevice = m_PhysicalDevice->CreateLogicalDevice();
 	}
 
 	RendererContext::~RendererContext()
 	{
+		delete m_LogicalDevice;
 		delete m_PhysicalDevice;
 
 		vkDestroySurfaceKHR(m_Instance, m_Surface, nullptr);

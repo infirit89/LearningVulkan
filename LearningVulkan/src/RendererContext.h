@@ -19,6 +19,7 @@ namespace LearningVulkan
 		static VkSurfaceKHR GetVulkanSurface() { return m_Surface; }
 
 		const PhysicalDevice* GetPhysicalDevice() const { return m_PhysicalDevice; }
+		LogicalDevice* GetLogicalDevice() const { return m_LogicalDevice; }
 
 	private:
 		void CreateVulkanInstance(std::string_view applicationName);
@@ -31,5 +32,6 @@ namespace LearningVulkan
 		VkDebugUtilsMessengerEXT m_DebugMessenger;
 		static VkSurfaceKHR m_Surface;
 		PhysicalDevice* m_PhysicalDevice;
+		LogicalDevice* m_LogicalDevice;
 	};
 }
