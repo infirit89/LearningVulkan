@@ -18,6 +18,7 @@ namespace LearningVulkan
 {
 	VkInstance RendererContext::m_Instance;
 	VkSurfaceKHR RendererContext::m_Surface;
+	LogicalDevice* RendererContext::m_LogicalDevice;
 
 	static VkBool32 VKAPI_CALL DebugCallback(VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity, VkDebugUtilsMessageTypeFlagsEXT messageType,
 		const VkDebugUtilsMessengerCallbackDataEXT* callbackData, void* userData)
@@ -85,10 +86,24 @@ namespace LearningVulkan
 
 		const Window* window = Application::Get()->GetWindow();
 		m_Swapchain = new Swapchain(m_LogicalDevice, window->GetWidth(), window->GetHeight(), PresentMode::Mailbox);
+		CreateRenderPass();
+
+		m_Framebuffers.reserve(m_Swapchain->GetImageViews().size());
+		for (size_t i = 0; i < m_Swapchain->GetImageViews().size(); i++)
+		{
+			const VkExtent2D& extent = m_Swapchain->GetExtent();
+			Framebuffer* framebuffer = new Framebuffer(m_RenderPass, m_Swapchain->GetImageViews().at(i), 
+				extent.width, extent.height);
+			m_Framebuffers.push_back(framebuffer);
+		}
 	}
 
 	RendererContext::~RendererContext()
 	{
+		for (const auto& framebuffer : m_Framebuffers)
+			delete framebuffer;
+
+		vkDestroyRenderPass(m_LogicalDevice->GetVulkanDevice(), m_RenderPass, nullptr);
 		delete m_Swapchain;
 		delete m_LogicalDevice;
 		delete m_PhysicalDevice;
@@ -96,6 +111,14 @@ namespace LearningVulkan
 		vkDestroySurfaceKHR(m_Instance, m_Surface, nullptr);
 		DestroyDebugUtilsMessanger(m_Instance, m_DebugMessenger, nullptr);
 		vkDestroyInstance(m_Instance, nullptr);
+	}
+
+	void RendererContext::Resize(uint32_t width, uint32_t height)
+	{
+		m_Swapchain->Recreate(width, height);
+		uint32_t index = 0;
+		for (const auto& framebuffer : m_Framebuffers) 
+			framebuffer->Resize(m_Swapchain->GetImageViews().at(index++), width, height);
 	}
 
 	void RendererContext::CreateVulkanInstance(std::string_view applicationName)
@@ -160,5 +183,46 @@ namespace LearningVulkan
 	{
 		const Window* window = Application::Get()->GetWindow();
 		assert(glfwCreateWindowSurface(m_Instance, window->GetNativeWindow(), nullptr, &m_Surface) == VK_SUCCESS);
+	}
+
+	void RendererContext::CreateRenderPass()
+	{
+		VkAttachmentDescription colorAttachment{};
+		colorAttachment.format = m_Swapchain->GetSurfaceFormat().format;
+		colorAttachment.samples = VK_SAMPLE_COUNT_1_BIT;
+		colorAttachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+		colorAttachment.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+		colorAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+		colorAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+		colorAttachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+		colorAttachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+
+		VkAttachmentReference attachmentRef{};
+		attachmentRef.attachment = 0;
+		attachmentRef.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+
+		VkSubpassDescription subpassDescription{};
+		subpassDescription.colorAttachmentCount = 1;
+		subpassDescription.pColorAttachments = &attachmentRef;
+
+		VkRenderPassCreateInfo renderPassCreateInfo{};
+		renderPassCreateInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
+		renderPassCreateInfo.attachmentCount = 1;
+		renderPassCreateInfo.pAttachments = &colorAttachment;
+		renderPassCreateInfo.subpassCount = 1;
+		renderPassCreateInfo.pSubpasses = &subpassDescription;
+
+		VkSubpassDependency subpassDependency{};
+		subpassDependency.srcSubpass = VK_SUBPASS_EXTERNAL;
+		subpassDependency.dstSubpass = 0;
+		subpassDependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+		subpassDependency.srcAccessMask = 0;
+		subpassDependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+		subpassDependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+
+		renderPassCreateInfo.dependencyCount = 1;
+		renderPassCreateInfo.pDependencies = &subpassDependency;
+
+		assert(vkCreateRenderPass(m_LogicalDevice->GetVulkanDevice(), &renderPassCreateInfo, nullptr, &m_RenderPass) == VK_SUCCESS);
 	}
 }

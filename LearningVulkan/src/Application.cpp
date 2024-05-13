@@ -67,11 +67,6 @@ namespace LearningVulkan
 		vkDestroyPipeline(m_RenderContext->GetLogicalDevice()->GetVulkanDevice(), m_Pipeline, nullptr);
 		vkDestroyPipelineLayout(m_RenderContext->GetLogicalDevice()->GetVulkanDevice(), m_PipelineLayout, nullptr);
 
-		for (const auto& framebuffer : m_Framebuffers)
-			vkDestroyFramebuffer(m_RenderContext->GetLogicalDevice()->GetVulkanDevice(), framebuffer, nullptr);
-
-		vkDestroyRenderPass(m_RenderContext->GetLogicalDevice()->GetVulkanDevice(), m_RenderPass, nullptr);
-
 		delete m_RenderContext;
 
 		delete m_Window;
@@ -101,74 +96,12 @@ namespace LearningVulkan
 		m_RenderContext = new RendererContext("Learning Vulkan");
 		//m_PhysicalDevice = 
 		//SetupLogicalDevice();
-		CreateRenderPass();
-		CreateFramebuffers();
 		Swapchain* swapchain = m_RenderContext->GetSwapchain();
 		m_PerFrameData.resize(swapchain->GetImageViews().size());
 		for (uint32_t i = 0; i < swapchain->GetImageViews().size(); i++)
 			CreatePerFrameObjects(i);
 
 		CreateGraphicsPipeline();
-	}
-
-	void Application::CreateRenderPass()
-	{
-		VkAttachmentDescription colorAttachment{};
-		colorAttachment.format = m_RenderContext->GetSwapchain()->GetSurfaceFormat().format;
-		colorAttachment.samples = VK_SAMPLE_COUNT_1_BIT;
-		colorAttachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-		colorAttachment.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
-		colorAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-		colorAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-		colorAttachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-		colorAttachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-
-		VkAttachmentReference attachmentRef{};
-		attachmentRef.attachment = 0;
-		attachmentRef.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-
-		VkSubpassDescription subpassDescription{};
-		subpassDescription.colorAttachmentCount = 1;
-		subpassDescription.pColorAttachments = &attachmentRef;
-
-		VkRenderPassCreateInfo renderPassCreateInfo{};
-		renderPassCreateInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
-		renderPassCreateInfo.attachmentCount = 1;
-		renderPassCreateInfo.pAttachments = &colorAttachment;
-		renderPassCreateInfo.subpassCount = 1;
-		renderPassCreateInfo.pSubpasses = &subpassDescription;
-
-		VkSubpassDependency subpassDependency{};
-		subpassDependency.srcSubpass = VK_SUBPASS_EXTERNAL;
-		subpassDependency.dstSubpass = 0;
-		subpassDependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-		subpassDependency.srcAccessMask = 0;
-		subpassDependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-		subpassDependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
-
-		renderPassCreateInfo.dependencyCount = 1;
-		renderPassCreateInfo.pDependencies = &subpassDependency;
-
-		assert(vkCreateRenderPass(m_RenderContext->GetLogicalDevice()->GetVulkanDevice(), &renderPassCreateInfo, nullptr, &m_RenderPass) == VK_SUCCESS);
-	}
-
-	void Application::CreateFramebuffers()
-	{
-		Swapchain* swapchain = m_RenderContext->GetSwapchain();
-		m_Framebuffers.resize(swapchain->GetImageViews().size());
-
-		for (size_t i = 0; i < swapchain->GetImageViews().size(); i++)
-		{
-			VkFramebufferCreateInfo framebufferCreateInfo{};
-			framebufferCreateInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
-			framebufferCreateInfo.attachmentCount = 1;
-			framebufferCreateInfo.pAttachments = &swapchain->GetImageViews().at(i);
-			framebufferCreateInfo.renderPass = m_RenderPass;
-			framebufferCreateInfo.width = swapchain->GetExtent().width;
-			framebufferCreateInfo.height = swapchain->GetExtent().height;
-			framebufferCreateInfo.layers = 1;
-			assert(vkCreateFramebuffer(m_RenderContext->GetLogicalDevice()->GetVulkanDevice(), &framebufferCreateInfo, nullptr, &m_Framebuffers.at(i)) == VK_SUCCESS);
-		}
 	}
 
 	VkCommandPool Application::CreateCommandPool()
@@ -210,8 +143,8 @@ namespace LearningVulkan
 		const VkExtent2D& swapchainExtent = m_RenderContext->GetSwapchain()->GetExtent();
 		VkRenderPassBeginInfo renderPassBeginInfo{};
 		renderPassBeginInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
-		renderPassBeginInfo.renderPass = m_RenderPass;
-		renderPassBeginInfo.framebuffer = m_Framebuffers.at(imageIndex);
+		renderPassBeginInfo.renderPass = m_RenderContext->GetRenderPass();
+		renderPassBeginInfo.framebuffer = m_RenderContext->GetFramebuffers().at(imageIndex)->GetVulkanFramebuffer();
 		renderPassBeginInfo.renderArea.offset = { 0, 0 };
 		renderPassBeginInfo.renderArea.extent = swapchainExtent;
 		VkClearValue clearValues{};
@@ -366,15 +299,7 @@ namespace LearningVulkan
 		}
 
 		m_Minimized = false;
-		m_RenderContext->GetSwapchain()->Recreate(width, height);
-		DestroyFramebuffers();
-		CreateFramebuffers();
-	}
-
-	void Application::DestroyFramebuffers()
-	{
-		for (const auto& framebuffer : m_Framebuffers)
-			vkDestroyFramebuffer(m_RenderContext->GetLogicalDevice()->GetVulkanDevice(), framebuffer, nullptr);
+		m_RenderContext->Resize(width, height);
 	}
 
 	void Application::CreateGraphicsPipeline()
@@ -481,7 +406,7 @@ namespace LearningVulkan
 		graphicsPipelineCreateInfo.stageCount = 2;
 		graphicsPipelineCreateInfo.pStages = shaderStages;
 
-		graphicsPipelineCreateInfo.renderPass = m_RenderPass;
+		graphicsPipelineCreateInfo.renderPass = m_RenderContext->GetRenderPass();
 		graphicsPipelineCreateInfo.subpass = 0;
 
 		assert(vkCreateGraphicsPipelines(m_RenderContext->GetLogicalDevice()->GetVulkanDevice(), VK_NULL_HANDLE, 1, &graphicsPipelineCreateInfo, nullptr, &m_Pipeline) == VK_SUCCESS);

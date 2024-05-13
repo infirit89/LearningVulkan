@@ -26,8 +26,6 @@ namespace LearningVulkan
 
 	private:
 		void SetupRenderer();
-		void CreateRenderPass();
-		void CreateFramebuffers();
 		VkCommandPool CreateCommandPool();
 
 		VkCommandBuffer AllocateCommandBuffer(VkCommandPool commandPool);
@@ -39,13 +37,10 @@ namespace LearningVulkan
 		void CreateGraphicsPipeline();
 		VkShaderModule CreateShader(const std::vector<char>& shaderData);
 		void OnResize(uint32_t width, uint32_t height);
-		void DestroyFramebuffers();
-
+		
 	private:
 		Window* m_Window;
 		RendererContext* m_RenderContext;
-		VkRenderPass m_RenderPass;
-		std::vector<VkFramebuffer> m_Framebuffers;
 		VkPipelineLayout m_PipelineLayout;
 		VkPipeline m_Pipeline;
 
