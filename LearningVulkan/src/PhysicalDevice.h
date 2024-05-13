@@ -11,10 +11,11 @@ namespace LearningVulkan
 {
 	struct QueueFamilyIndices 
 	{
-		std::optional<uint32_t> GraphicsFamily;
+		std::optional<uint32_t> GraphicsFamily, PresentationFamily;
+		bool IsComplete() const { return GraphicsFamily.has_value() && PresentationFamily.has_value(); }
 	};
 
-	struct SwapChainSupportDetails
+	struct SwapchainSupportDetails
 	{
 		VkSurfaceCapabilitiesKHR SurfaceCapabilities;
 		std::vector<VkSurfaceFormatKHR> SurfaceFormats;
@@ -32,9 +33,9 @@ namespace LearningVulkan
 		const QueueFamilyIndices& GetQueueFamilyIndices() const { return m_QueueFamilyIndices; }
 		VkPhysicalDevice GetPhysicalDevice() const { return m_PhysicalDevice; }
 
-		static SwapChainSupportDetails QuerySwapChainSupport(VkPhysicalDevice physicalDevice);
 		LogicalDevice* CreateLogicalDevice();
-
+		SwapchainSupportDetails QuerySwapChainSupport();
+		
 	private:
 		PhysicalDevice(VkPhysicalDevice physicalDevice);
 		static QueueFamilyIndices FindQueueFamilyIndices(VkPhysicalDevice physicalDevice);

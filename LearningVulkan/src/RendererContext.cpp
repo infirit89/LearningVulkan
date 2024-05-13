@@ -82,10 +82,14 @@ namespace LearningVulkan
 		m_PhysicalDevice = PhysicalDevice::GetSuitablePhysicalDevice();
 		assert(m_PhysicalDevice != nullptr);
 		m_LogicalDevice = m_PhysicalDevice->CreateLogicalDevice();
+
+		const Window* window = Application::Get()->GetWindow();
+		m_Swapchain = new Swapchain(m_LogicalDevice, window->GetWidth(), window->GetHeight(), PresentMode::Mailbox);
 	}
 
 	RendererContext::~RendererContext()
 	{
+		delete m_Swapchain;
 		delete m_LogicalDevice;
 		delete m_PhysicalDevice;
 

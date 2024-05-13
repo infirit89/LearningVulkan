@@ -72,11 +72,6 @@ namespace LearningVulkan
 
 		vkDestroyRenderPass(m_RenderContext->GetLogicalDevice()->GetVulkanDevice(), m_RenderPass, nullptr);
 
-		for (const auto& imageView : m_SwapchainImageViews)
-			vkDestroyImageView(m_RenderContext->GetLogicalDevice()->GetVulkanDevice(), imageView, nullptr);
-
-		vkDestroySwapchainKHR(m_RenderContext->GetLogicalDevice()->GetVulkanDevice(), m_Swapchain, nullptr);
-		//vkDestroySurfaceKHR(m_RenderContext->GetVulkanInstance(), m_Surface, nullptr);
 		delete m_RenderContext;
 
 		delete m_Window;
@@ -106,132 +101,20 @@ namespace LearningVulkan
 		m_RenderContext = new RendererContext("Learning Vulkan");
 		//m_PhysicalDevice = 
 		//SetupLogicalDevice();
-		m_SwapchainDetails = m_RenderContext->GetPhysicalDevice()->QuerySwapChainSupport(m_RenderContext->GetPhysicalDevice()->GetPhysicalDevice());
-		m_SurfaceFormat = ChooseCorrectSurfaceFormat(m_SwapchainDetails.SurfaceFormats);
 		CreateRenderPass();
-		CreateSwapchain();
-		m_PerFrameData.resize(m_SwapchainImages.size());
-		for (uint32_t i = 0; i < m_SwapchainImages.size(); i++)
+		CreateFramebuffers();
+		Swapchain* swapchain = m_RenderContext->GetSwapchain();
+		m_PerFrameData.resize(swapchain->GetImageViews().size());
+		for (uint32_t i = 0; i < swapchain->GetImageViews().size(); i++)
 			CreatePerFrameObjects(i);
 
 		CreateGraphicsPipeline();
 	}
 
-	VkSurfaceFormatKHR Application::ChooseCorrectSurfaceFormat(const std::vector<VkSurfaceFormatKHR>& surfaceFormats)
-	{
-		for (const auto& surfaceFormat : surfaceFormats)
-		{
-			if (surfaceFormat.format == VK_FORMAT_B8G8R8A8_SRGB && surfaceFormat.colorSpace == VK_COLORSPACE_SRGB_NONLINEAR_KHR)
-				return surfaceFormat;
-		}
-
-		return surfaceFormats.at(0);
-	}
-
-	VkPresentModeKHR Application::ChooseSurfacePresentMode(const std::vector<VkPresentModeKHR>& presentModes)
-	{
-		for (const auto& presentMode : presentModes) 
-		{
-			// present images last in first out
-			if (presentMode == VK_PRESENT_MODE_MAILBOX_KHR)
-				return presentMode;
-		}
-
-		// present images first in first out
-		return VK_PRESENT_MODE_FIFO_KHR;
-	}
-
-	void Application::CreateSwapchain()
-	{
-		m_SwapchainDetails = m_RenderContext->GetPhysicalDevice()->QuerySwapChainSupport(m_RenderContext->GetPhysicalDevice()->GetPhysicalDevice());
-		VkPresentModeKHR presentMode = ChooseSurfacePresentMode(m_SwapchainDetails.PresentModes);
-		VkExtent2D framebufferExtent = ChooseSwapchainExtent(m_SwapchainDetails.SurfaceCapabilities);
-
-		uint32_t minImageCount = m_SwapchainDetails.SurfaceCapabilities.minImageCount + 1;
-		if (m_SwapchainDetails.SurfaceCapabilities.maxImageCount > 0 && minImageCount > m_SwapchainDetails.SurfaceCapabilities.maxImageCount)
-			minImageCount = m_SwapchainDetails.SurfaceCapabilities.maxImageCount;
-
-		VkSwapchainKHR oldSwapchain = m_Swapchain;
-
-		VkSwapchainCreateInfoKHR swapchainCreateInfo{};
-		swapchainCreateInfo.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
-		swapchainCreateInfo.imageExtent = framebufferExtent;
-		swapchainCreateInfo.presentMode = presentMode;
-		swapchainCreateInfo.imageFormat = m_SurfaceFormat.format;
-		swapchainCreateInfo.imageColorSpace = m_SurfaceFormat.colorSpace;
-		swapchainCreateInfo.surface = m_RenderContext->GetVulkanSurface();
-		swapchainCreateInfo.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
-		swapchainCreateInfo.imageArrayLayers = 1;
-		swapchainCreateInfo.minImageCount = minImageCount;
-
-		const QueueFamilyIndices& queueFamilyIndices = m_RenderContext->GetPhysicalDevice()->GetQueueFamilyIndices();
-
-		//uint32_t indices[] = { queueFamilyIndices.GraphicsFamily.value(), queueFamilyIndices.PresentationFamily.value() };
-
-		/*if (queueFamilyIndices.GraphicsFamily != queueFamilyIndices.PresentationFamily) 
-		{
-			swapchainCreateInfo.imageSharingMode = VK_SHARING_MODE_CONCURRENT;
-			swapchainCreateInfo.queueFamilyIndexCount = 2;
-			swapchainCreateInfo.pQueueFamilyIndices = indices;
-		}
-		else 
-		{
-			swapchainCreateInfo.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
-			swapchainCreateInfo.queueFamilyIndexCount = 1;
-			swapchainCreateInfo.pQueueFamilyIndices = &queueFamilyIndices.GraphicsFamily.value();
-		}*/
-
-		swapchainCreateInfo.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
-
-		swapchainCreateInfo.preTransform = m_SwapchainDetails.SurfaceCapabilities.currentTransform;
-		swapchainCreateInfo.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
-		swapchainCreateInfo.clipped = VK_TRUE;
-		swapchainCreateInfo.oldSwapchain = oldSwapchain;
-
-		assert(vkCreateSwapchainKHR(m_RenderContext->GetLogicalDevice()->GetVulkanDevice(), &swapchainCreateInfo, nullptr, &m_Swapchain) == VK_SUCCESS);
-
-		if (oldSwapchain != VK_NULL_HANDLE)
-			DestroySwapchain(oldSwapchain);
-
-		uint32_t imageCount;
-		vkGetSwapchainImagesKHR(m_RenderContext->GetLogicalDevice()->GetVulkanDevice(), m_Swapchain, &imageCount, nullptr);
-		m_SwapchainImages.resize(imageCount);
-		vkGetSwapchainImagesKHR(m_RenderContext->GetLogicalDevice()->GetVulkanDevice(), m_Swapchain, &imageCount, m_SwapchainImages.data());
-
-		m_SwapchainImagesExtent = framebufferExtent;
-
-		CreateImageViews();
-		CreateFramebuffers();
-	}
-
-	void Application::CreateImageViews()
-	{
-		m_SwapchainImageViews.resize(m_SwapchainImages.size());
-
-		for (size_t i = 0; i < m_SwapchainImages.size(); i++)
-		{
-			VkImageViewCreateInfo imageViewCreateInfo{};
-			imageViewCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-			imageViewCreateInfo.image = m_SwapchainImages.at(i);
-			imageViewCreateInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
-			imageViewCreateInfo.format = m_SurfaceFormat.format;
-			imageViewCreateInfo.components.r = VK_COMPONENT_SWIZZLE_IDENTITY;
-			imageViewCreateInfo.components.g = VK_COMPONENT_SWIZZLE_IDENTITY;
-			imageViewCreateInfo.components.b = VK_COMPONENT_SWIZZLE_IDENTITY;
-			imageViewCreateInfo.components.a = VK_COMPONENT_SWIZZLE_IDENTITY;
-			imageViewCreateInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-			imageViewCreateInfo.subresourceRange.baseMipLevel = 0;
-			imageViewCreateInfo.subresourceRange.levelCount = 1;
-			imageViewCreateInfo.subresourceRange.baseArrayLayer = 0;
-			imageViewCreateInfo.subresourceRange.layerCount = 1;
-			assert(vkCreateImageView(m_RenderContext->GetLogicalDevice()->GetVulkanDevice(), &imageViewCreateInfo, nullptr, &m_SwapchainImageViews.at(i)) == VK_SUCCESS);
-		}
-	}
-
 	void Application::CreateRenderPass()
 	{
 		VkAttachmentDescription colorAttachment{};
-		colorAttachment.format = m_SurfaceFormat.format;
+		colorAttachment.format = m_RenderContext->GetSwapchain()->GetSurfaceFormat().format;
 		colorAttachment.samples = VK_SAMPLE_COUNT_1_BIT;
 		colorAttachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
 		colorAttachment.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
@@ -271,17 +154,18 @@ namespace LearningVulkan
 
 	void Application::CreateFramebuffers()
 	{
-		m_Framebuffers.resize(m_SwapchainImageViews.size());
+		Swapchain* swapchain = m_RenderContext->GetSwapchain();
+		m_Framebuffers.resize(swapchain->GetImageViews().size());
 
-		for (size_t i = 0; i < m_SwapchainImageViews.size(); i++)
+		for (size_t i = 0; i < swapchain->GetImageViews().size(); i++)
 		{
 			VkFramebufferCreateInfo framebufferCreateInfo{};
 			framebufferCreateInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
 			framebufferCreateInfo.attachmentCount = 1;
-			framebufferCreateInfo.pAttachments = &m_SwapchainImageViews.at(i);
+			framebufferCreateInfo.pAttachments = &swapchain->GetImageViews().at(i);
 			framebufferCreateInfo.renderPass = m_RenderPass;
-			framebufferCreateInfo.width = m_SwapchainImagesExtent.width;
-			framebufferCreateInfo.height = m_SwapchainImagesExtent.height;
+			framebufferCreateInfo.width = swapchain->GetExtent().width;
+			framebufferCreateInfo.height = swapchain->GetExtent().height;
 			framebufferCreateInfo.layers = 1;
 			assert(vkCreateFramebuffer(m_RenderContext->GetLogicalDevice()->GetVulkanDevice(), &framebufferCreateInfo, nullptr, &m_Framebuffers.at(i)) == VK_SUCCESS);
 		}
@@ -323,12 +207,13 @@ namespace LearningVulkan
 		OPTICK_GPU_CONTEXT(commandBuffer);
 		OPTICK_GPU_EVENT("Draw Triangle");
 
+		const VkExtent2D& swapchainExtent = m_RenderContext->GetSwapchain()->GetExtent();
 		VkRenderPassBeginInfo renderPassBeginInfo{};
 		renderPassBeginInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
 		renderPassBeginInfo.renderPass = m_RenderPass;
 		renderPassBeginInfo.framebuffer = m_Framebuffers.at(imageIndex);
 		renderPassBeginInfo.renderArea.offset = { 0, 0 };
-		renderPassBeginInfo.renderArea.extent = m_SwapchainImagesExtent;
+		renderPassBeginInfo.renderArea.extent = swapchainExtent;
 		VkClearValue clearValues{};
 		clearValues.color = { { 0.1f, 0.1f, 0.1f, 1.0f } };
 		renderPassBeginInfo.clearValueCount = 1;
@@ -347,8 +232,8 @@ namespace LearningVulkan
 			VkViewport viewport{};
 			viewport.x = 0.0f;
 			viewport.y = 0.0f;
-			viewport.width = m_SwapchainImagesExtent.width;
-			viewport.height = m_SwapchainImagesExtent.height;
+			viewport.width = swapchainExtent.width;
+			viewport.height = swapchainExtent.height;
 			viewport.minDepth = 0.0f;
 			viewport.maxDepth = 1.0f;
 
@@ -359,7 +244,7 @@ namespace LearningVulkan
 			OPTICK_GPU_EVENT("Set scissor state");
 			VkRect2D scissorRect{};
 			scissorRect.offset = { 0, 0 };
-			scissorRect.extent = m_SwapchainImagesExtent;
+			scissorRect.extent = swapchainExtent;
 			vkCmdSetScissor(commandBuffer, 0, 1, &scissorRect);
 		}
 		
@@ -423,9 +308,10 @@ namespace LearningVulkan
 		{
 			{
 				OPTICK_GPU_EVENT("Acquire swapchain image");
-				vkAcquireNextImageKHR(m_RenderContext->GetLogicalDevice()->GetVulkanDevice(), m_Swapchain, UINT64_MAX, data.SwapchainImageAcquireSemaphore, VK_NULL_HANDLE, &imageIndex);
+				m_RenderContext->GetSwapchain()->AcquireNextImage(data.SwapchainImageAcquireSemaphore, imageIndex);
 			}
 
+			std::cout << imageIndex << '\n';
 			vkResetCommandBuffer(data.CommandBuffer, 0);
 			RecordCommandBuffer(imageIndex, data.CommandBuffer);
 			VkSubmitInfo submitInfo{};
@@ -444,19 +330,9 @@ namespace LearningVulkan
 				assert(vkQueueSubmit(m_RenderContext->GetLogicalDevice()->GetGraphicsQueue(), 1, &submitInfo, data.PresentFence) == VK_SUCCESS);
 			}
 
-			VkPresentInfoKHR presentInfo{};
-			presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
-
-			presentInfo.waitSemaphoreCount = 1;
-			presentInfo.pWaitSemaphores = &data.QueueReadySemaphore;
-			presentInfo.swapchainCount = 1;
-			presentInfo.pSwapchains = &m_Swapchain;
-			presentInfo.pImageIndices = &imageIndex;
-
 			{
 				OPTICK_GPU_EVENT("Queue Present KHR");
-				//vkQueuePresentKHR(m_PresentQueue, &presentInfo);
-				vkQueuePresentKHR(m_RenderContext->GetLogicalDevice()->GetGraphicsQueue(), &presentInfo);
+				m_RenderContext->GetSwapchain()->Present(data.QueueReadySemaphore, imageIndex);
 			}
 
 			m_FrameIndex = (m_FrameIndex + 1) % m_PerFrameData.size();
@@ -481,17 +357,6 @@ namespace LearningVulkan
 		return shaderModule;
 	}
 
-	void Application::DestroySwapchain(VkSwapchainKHR swapchain)
-	{
-		for (const auto& framebuffer : m_Framebuffers)
-			vkDestroyFramebuffer(m_RenderContext->GetLogicalDevice()->GetVulkanDevice(), framebuffer, nullptr);
-
-		for (const auto& imageView : m_SwapchainImageViews)
-			vkDestroyImageView(m_RenderContext->GetLogicalDevice()->GetVulkanDevice(), imageView, nullptr);
-
-		vkDestroySwapchainKHR(m_RenderContext->GetLogicalDevice()->GetVulkanDevice(), swapchain, nullptr);
-	}
-
 	void Application::OnResize(uint32_t width, uint32_t height)
 	{
 		if (width == 0 || height == 0) 
@@ -501,7 +366,15 @@ namespace LearningVulkan
 		}
 
 		m_Minimized = false;
-		CreateSwapchain();
+		m_RenderContext->GetSwapchain()->Recreate(width, height);
+		DestroyFramebuffers();
+		CreateFramebuffers();
+	}
+
+	void Application::DestroyFramebuffers()
+	{
+		for (const auto& framebuffer : m_Framebuffers)
+			vkDestroyFramebuffer(m_RenderContext->GetLogicalDevice()->GetVulkanDevice(), framebuffer, nullptr);
 	}
 
 	void Application::CreateGraphicsPipeline()
@@ -616,24 +489,5 @@ namespace LearningVulkan
 
 		vkDestroyShaderModule(m_RenderContext->GetLogicalDevice()->GetVulkanDevice(), fragmentShader, nullptr);
 		vkDestroyShaderModule(m_RenderContext->GetLogicalDevice()->GetVulkanDevice(), vertexShader, nullptr);
-	}
-
-	VkExtent2D Application::ChooseSwapchainExtent(const VkSurfaceCapabilitiesKHR& surfaceCapabilities)
-	{
-		if (surfaceCapabilities.currentExtent.width != UINT32_MAX)
-			return surfaceCapabilities.currentExtent;
-
-		uint32_t width, height;
-		glfwGetFramebufferSize(m_Window->GetNativeWindow(), (int*) & width, (int*) & height);
-
-		VkExtent2D extent = {
-			width,
-			height
-		};
-
-		extent.width = std::clamp(extent.width, surfaceCapabilities.minImageExtent.width, surfaceCapabilities.maxImageExtent.width);
-		extent.height = std::clamp(extent.height, surfaceCapabilities.minImageExtent.height, surfaceCapabilities.maxImageExtent.height);
-
-		return extent;
 	}
 }

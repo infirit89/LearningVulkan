@@ -26,11 +26,6 @@ namespace LearningVulkan
 
 	private:
 		void SetupRenderer();
-		VkSurfaceFormatKHR ChooseCorrectSurfaceFormat(const std::vector<VkSurfaceFormatKHR>& surfaceFormats);
-		VkPresentModeKHR ChooseSurfacePresentMode(const std::vector<VkPresentModeKHR>& presentModes);
-		VkExtent2D ChooseSwapchainExtent(const VkSurfaceCapabilitiesKHR& surfaceCapabilities);
-		void CreateSwapchain();
-		void CreateImageViews();
 		void CreateRenderPass();
 		void CreateFramebuffers();
 		VkCommandPool CreateCommandPool();
@@ -43,17 +38,12 @@ namespace LearningVulkan
 		void DrawFrame();
 		void CreateGraphicsPipeline();
 		VkShaderModule CreateShader(const std::vector<char>& shaderData);
-		void DestroySwapchain(VkSwapchainKHR swapchain);
 		void OnResize(uint32_t width, uint32_t height);
+		void DestroyFramebuffers();
 
 	private:
 		Window* m_Window;
 		RendererContext* m_RenderContext;
-		VkSwapchainKHR m_Swapchain = VK_NULL_HANDLE;
-		std::vector<VkImage> m_SwapchainImages;
-		std::vector<VkImageView> m_SwapchainImageViews;
-		VkSurfaceFormatKHR m_SurfaceFormat;
-		VkExtent2D m_SwapchainImagesExtent;
 		VkRenderPass m_RenderPass;
 		std::vector<VkFramebuffer> m_Framebuffers;
 		VkPipelineLayout m_PipelineLayout;
@@ -70,7 +60,6 @@ namespace LearningVulkan
 
 		std::vector<PerFrameData> m_PerFrameData;
 		uint32_t m_FrameIndex = 0;
-		SwapChainSupportDetails m_SwapchainDetails;
 		bool m_Minimized = false;
 
 		static Application* m_Instance;

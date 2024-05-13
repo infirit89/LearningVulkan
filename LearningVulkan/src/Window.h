@@ -22,8 +22,11 @@ namespace LearningVulkan
 		GLFWwindow* GetNativeWindow() const { return m_Window; }
 
 		void SetResizeFn(const ResizeFn& resizeFn) { m_ResizeFn = resizeFn; }
+		uint32_t GetWidth() const { return m_Width; }
+		uint32_t GetHeight() const { return m_Height; }
 
 	private:
+		uint32_t m_Width, m_Height;
 		ResizeFn m_ResizeFn;
 		GLFWwindow* m_Window;
 	};

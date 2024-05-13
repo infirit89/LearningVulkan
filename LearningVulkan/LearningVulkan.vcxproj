@@ -108,6 +108,7 @@
     <ClInclude Include="src\LogicalDevice.h" />
     <ClInclude Include="src\PhysicalDevice.h" />
     <ClInclude Include="src\RendererContext.h" />
+    <ClInclude Include="src\Swapchain.h" />
     <ClInclude Include="src\VulkanUtils.h" />
     <ClInclude Include="src\Window.h" />
   </ItemGroup>
@@ -117,6 +118,7 @@
     <ClCompile Include="src\Main.cpp" />
     <ClCompile Include="src\PhysicalDevice.cpp" />
     <ClCompile Include="src\RendererContext.cpp" />
+    <ClCompile Include="src\Swapchain.cpp" />
     <ClCompile Include="src\Window.cpp" />
   </ItemGroup>
   <ItemGroup>

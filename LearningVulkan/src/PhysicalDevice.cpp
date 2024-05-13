@@ -12,9 +12,8 @@
 namespace LearningVulkan
 {
 	PhysicalDevice::PhysicalDevice(VkPhysicalDevice physicalDevice)
-	{
-		m_PhysicalDevice = physicalDevice;
-	}
+		: m_PhysicalDevice(physicalDevice)
+	{ }
 
 	LogicalDevice* PhysicalDevice::CreateLogicalDevice()
 	{
@@ -40,10 +39,8 @@ namespace LearningVulkan
 		deviceCreateInfo.ppEnabledExtensionNames = VulkanUtils::DeviceExtensions.data();
 
 		VkDevice device;
-		assert(vkCreateDevice(m_PhysicalDevice, &deviceCreateInfo, nullptr, &device) == VK_SUCCESS);
-		LogicalDevice* logicalDevice = new LogicalDevice(device);
-		vkGetDeviceQueue(device, m_QueueFamilyIndices.GraphicsFamily.value(), 0, &logicalDevice->m_GraphicsQueue);
-		return logicalDevice;
+		assert(vkCreateDevice(m_PhysicalDevice, &deviceCreateInfo, nullptr, &device) == VK_SUCCESS);	
+		return new LogicalDevice(device, this);
 	}
 
 	QueueFamilyIndices PhysicalDevice::FindQueueFamilyIndices(VkPhysicalDevice physicalDevice)
@@ -60,7 +57,14 @@ namespace LearningVulkan
 			if (properties.queueFlags & VK_QUEUE_GRAPHICS_BIT)
 				queueFamilyIndices.GraphicsFamily = index;
 
-			//vkGetPhysicalDeviceSurfaceSupportKHR(m_PhysicalDevice, index, )
+			VkBool32 presentationSupported;
+			vkGetPhysicalDeviceSurfaceSupportKHR(physicalDevice, index, RendererContext::GetVulkanSurface(), &presentationSupported);
+			if (presentationSupported)
+				queueFamilyIndices.PresentationFamily = index;
+
+			if (queueFamilyIndices.IsComplete())
+				break;
+
 			index++;
 		}
 
@@ -78,20 +82,11 @@ namespace LearningVulkan
 			score++;
 
 		const QueueFamilyIndices& queueFamilyIndices = FindQueueFamilyIndices(physicalDevice);
-		if (!queueFamilyIndices.GraphicsFamily.has_value())
+		if (!queueFamilyIndices.IsComplete())
 			score = 0;
-
-		/*if (!queueFamilyIndices.PresentationFamily.has_value())
-			score = 0;*/
 
 		if (!CheckDeviceExtensionSupport(physicalDevice))
 			score = 0;
-		else
-		{
-			SwapChainSupportDetails details = QuerySwapChainSupport(physicalDevice);
-			if (details.PresentModes.empty() || details.SurfaceFormats.empty())
-				score = 0;
-		}
 
 		std::cout << '\t' << "Name: " << deviceProperties.deviceName << "; Score: " << score << '\n';
 		return score;
@@ -114,30 +109,30 @@ namespace LearningVulkan
 		return requiredExtensions.empty();
 	}
 
-	SwapChainSupportDetails PhysicalDevice::QuerySwapChainSupport(VkPhysicalDevice physicalDevice)
+	SwapchainSupportDetails PhysicalDevice::QuerySwapChainSupport()
 	{
-		SwapChainSupportDetails swapChainSupport;
+		SwapchainSupportDetails swapChainSupport;
 
 		VkSurfaceKHR surface = RendererContext::GetVulkanSurface();
 
-		vkGetPhysicalDeviceSurfaceCapabilitiesKHR(physicalDevice, surface, &swapChainSupport.SurfaceCapabilities);
+		vkGetPhysicalDeviceSurfaceCapabilitiesKHR(m_PhysicalDevice, surface, &swapChainSupport.SurfaceCapabilities);
 
 		uint32_t formatCount = 0;
-		vkGetPhysicalDeviceSurfaceFormatsKHR(physicalDevice, surface, &formatCount, nullptr);
+		vkGetPhysicalDeviceSurfaceFormatsKHR(m_PhysicalDevice, surface, &formatCount, nullptr);
 
 		if (formatCount > 0)
 		{
 			swapChainSupport.SurfaceFormats.resize(formatCount);
-			vkGetPhysicalDeviceSurfaceFormatsKHR(physicalDevice, surface, &formatCount, swapChainSupport.SurfaceFormats.data());
+			vkGetPhysicalDeviceSurfaceFormatsKHR(m_PhysicalDevice, surface, &formatCount, swapChainSupport.SurfaceFormats.data());
 		}
 
 		uint32_t presentModesCount = 0;
-		vkGetPhysicalDeviceSurfacePresentModesKHR(physicalDevice, surface, &presentModesCount, nullptr);
+		vkGetPhysicalDeviceSurfacePresentModesKHR(m_PhysicalDevice, surface, &presentModesCount, nullptr);
 
 		if (presentModesCount > 0)
 		{
 			swapChainSupport.PresentModes.resize(presentModesCount);
-			vkGetPhysicalDeviceSurfacePresentModesKHR(physicalDevice, surface, &presentModesCount, swapChainSupport.PresentModes.data());
+			vkGetPhysicalDeviceSurfacePresentModesKHR(m_PhysicalDevice, surface, &presentModesCount, swapChainSupport.PresentModes.data());
 		}
 
 		return swapChainSupport;
@@ -170,12 +165,14 @@ namespace LearningVulkan
 
 		if (deviceCandidates.rbegin()->first > 0)
 		{
-			VkPhysicalDevice pickedDevice = deviceCandidates.rbegin()->second;
+			VkPhysicalDevice vulkanPhysicalDevice = deviceCandidates.rbegin()->second;
 			VkPhysicalDeviceProperties deviceProperties;
-			vkGetPhysicalDeviceProperties(pickedDevice, &deviceProperties);
+			vkGetPhysicalDeviceProperties(vulkanPhysicalDevice, &deviceProperties);
 			std::cout << "Picked device: " << deviceProperties.deviceName << '\n';
 
-			return new PhysicalDevice(pickedDevice);
+			PhysicalDevice* physicalDevice = new PhysicalDevice(vulkanPhysicalDevice);
+
+			return physicalDevice;
 		}
 		else
 		{

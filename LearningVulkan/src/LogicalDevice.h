@@ -4,6 +4,7 @@
 
 namespace LearningVulkan 
 {
+	class PhysicalDevice;
 	class LogicalDevice 
 	{
 	public:
@@ -11,14 +12,18 @@ namespace LearningVulkan
 		VkDevice GetVulkanDevice() const { return m_LogicalDevice; }
 
 		VkQueue GetGraphicsQueue() const { return m_GraphicsQueue; }
+		VkQueue GetPresentQueue() const { return m_PresentQueue; }
 		void WaitIdle();
+		PhysicalDevice* GetPhysicalDevice() const { return m_PhysicalDevice; }
 
 	private:
-		LogicalDevice(VkDevice device);
+		LogicalDevice(VkDevice device, PhysicalDevice* physicalDevice);
 
 	private:
 		VkDevice m_LogicalDevice = VK_NULL_HANDLE;
 		VkQueue m_GraphicsQueue = VK_NULL_HANDLE;
+		VkQueue m_PresentQueue = VK_NULL_HANDLE;
+		PhysicalDevice* m_PhysicalDevice = nullptr;
 
 		friend class PhysicalDevice;
 	};

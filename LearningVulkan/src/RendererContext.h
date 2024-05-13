@@ -1,6 +1,7 @@
 #pragma once
 
 #include "PhysicalDevice.h"
+#include "Swapchain.h"
 
 #include <vulkan/vulkan.h>
 
@@ -20,6 +21,7 @@ namespace LearningVulkan
 
 		const PhysicalDevice* GetPhysicalDevice() const { return m_PhysicalDevice; }
 		LogicalDevice* GetLogicalDevice() const { return m_LogicalDevice; }
+		Swapchain* GetSwapchain() const { return m_Swapchain; }
 
 	private:
 		void CreateVulkanInstance(std::string_view applicationName);
@@ -33,5 +35,6 @@ namespace LearningVulkan
 		static VkSurfaceKHR m_Surface;
 		PhysicalDevice* m_PhysicalDevice;
 		LogicalDevice* m_LogicalDevice;
+		Swapchain* m_Swapchain;
 	};
 }
