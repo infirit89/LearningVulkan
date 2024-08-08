@@ -13,6 +13,8 @@
 #include <cassert>
 #include <iostream>
 #include <map>
+#include <fstream>
+#include <filesystem>
 
 namespace LearningVulkan
 {
@@ -224,5 +226,189 @@ namespace LearningVulkan
 		renderPassCreateInfo.pDependencies = &subpassDependency;
 
 		assert(vkCreateRenderPass(m_LogicalDevice->GetVulkanDevice(), &renderPassCreateInfo, nullptr, &m_RenderPass) == VK_SUCCESS);
+	}
+
+	VkCommandPool RendererContext::CreateCommandPool()
+	{
+		const QueueFamilyIndices& queueFamilies = m_PhysicalDevice->GetQueueFamilyIndices();
+		VkCommandPoolCreateInfo commandPoolCreateInfo{};
+		commandPoolCreateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
+		commandPoolCreateInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
+		commandPoolCreateInfo.queueFamilyIndex = queueFamilies.GraphicsFamily.value();
+
+		VkCommandPool commandPool;
+		assert(vkCreateCommandPool(m_LogicalDevice->GetVulkanDevice(), &commandPoolCreateInfo, nullptr, &commandPool) == VK_SUCCESS);
+		return commandPool;
+	}
+
+	VkCommandBuffer RendererContext::AllocateCommandBuffer(VkCommandPool commandPool)
+	{
+		VkCommandBufferAllocateInfo commandBufferAllocateInfo{};
+		commandBufferAllocateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+		commandBufferAllocateInfo.commandBufferCount = 1;
+		commandBufferAllocateInfo.commandPool = commandPool;
+		commandBufferAllocateInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+		
+		VkCommandBuffer commandBuffer;
+		assert(vkAllocateCommandBuffers(m_LogicalDevice->GetVulkanDevice(), &commandBufferAllocateInfo, &commandBuffer) == VK_SUCCESS);
+		return commandBuffer;
+	}
+
+	void RendererContext::RecordCommandBuffer(uint32_t imageIndex, VkCommandBuffer commandBuffer)
+	{
+	}
+
+	void RendererContext::CreateSyncObjects(VkSemaphore& swapchainImageAcquireSemaphore, VkSemaphore& queueReadySemaphore, VkFence& presentFence)
+	{
+		VkSemaphoreCreateInfo semaphoreCreateInfo{};
+		semaphoreCreateInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
+		assert(vkCreateSemaphore(m_LogicalDevice->GetVulkanDevice(), &semaphoreCreateInfo, nullptr, &swapchainImageAcquireSemaphore) == VK_SUCCESS);
+
+		assert(vkCreateSemaphore(m_LogicalDevice->GetVulkanDevice(), &semaphoreCreateInfo, nullptr, &queueReadySemaphore) == VK_SUCCESS);
+
+		VkFenceCreateInfo fenceCreateInfo{};
+		fenceCreateInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
+
+		assert(vkCreateFence(m_LogicalDevice->GetVulkanDevice(), &fenceCreateInfo, nullptr, &presentFence) == VK_SUCCESS);
+	}
+
+	static std::vector<char> ReadShaderFile(const std::filesystem::path& shaderPath)
+	{
+		std::ifstream file(shaderPath, std::ios::ate | std::ios::binary);
+
+		assert(file.is_open());
+
+		size_t fileSize = file.tellg();
+		std::vector<char> fileData(fileSize);
+		file.seekg(0);
+		file.read(fileData.data(), fileSize);
+
+		return fileData;
+	}
+
+	void RendererContext::CreatePerFrameObjects(uint32_t frameIndex)
+	{
+		PerFrameData& data = m_PerFrameData.at(frameIndex);
+		data.CommandPool = CreateCommandPool();
+		data.CommandBuffer = AllocateCommandBuffer(data.CommandPool);
+		CreateSyncObjects(
+			data.SwapchainImageAcquireSemaphore,
+			data.QueueReadySemaphore,
+			data.PresentFence);
+	}
+
+	void RendererContext::DrawFrame()
+	{
+	}
+	void RendererContext::CreateGraphicsPipeline()
+	{
+		VkGraphicsPipelineCreateInfo graphicsPipelineCreateInfo{};
+		graphicsPipelineCreateInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
+		graphicsPipelineCreateInfo.renderPass = m_RenderPass;
+
+		std::vector<char> vertexShaderData = ReadShaderFile("assets/shaders/bin/BasicVert.spv");
+		std::vector<char> fragmentShaderData = ReadShaderFile("assets/shaders/bin/BasicFrag.spv");
+
+		VkShaderModule vertexShaderModule = CreateShader(vertexShaderData);
+		VkShaderModule fragmentShaderModule = CreateShader(fragmentShaderData);
+
+		{
+			VkPipelineShaderStageCreateInfo vertexShaderStageCreateInfo{};
+			vertexShaderStageCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+			vertexShaderStageCreateInfo.module = vertexShaderModule;
+			vertexShaderStageCreateInfo.stage = VK_SHADER_STAGE_VERTEX_BIT;
+			vertexShaderStageCreateInfo.pName = "main";
+
+			VkPipelineShaderStageCreateInfo fragmentShaderStageCreateInfo{};
+			fragmentShaderStageCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+			fragmentShaderStageCreateInfo.module = fragmentShaderModule;
+			fragmentShaderStageCreateInfo.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
+			fragmentShaderStageCreateInfo.pName = "main";
+
+			constexpr size_t shaderStagesCount = 2;
+			VkPipelineShaderStageCreateInfo shaderStages[shaderStagesCount] =
+			{
+				vertexShaderStageCreateInfo,
+				fragmentShaderStageCreateInfo
+			};
+
+			graphicsPipelineCreateInfo.pStages = shaderStages;
+			graphicsPipelineCreateInfo.stageCount = shaderStagesCount;
+		}
+
+
+		{
+			VkPipelineVertexInputStateCreateInfo vertexInputCreateInfo{};
+			vertexInputCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
+
+			graphicsPipelineCreateInfo.pVertexInputState = &vertexInputCreateInfo;
+		}
+
+		{
+			VkPipelineInputAssemblyStateCreateInfo inputAssemblyStateCreateInfo{};
+			inputAssemblyStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
+			inputAssemblyStateCreateInfo.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+
+			graphicsPipelineCreateInfo.pInputAssemblyState = &inputAssemblyStateCreateInfo;
+		}
+
+		{
+			constexpr size_t dynamicStatesCount = 2;
+			std::array<VkDynamicState, dynamicStatesCount> dynamicStates =
+			{
+				VK_DYNAMIC_STATE_VIEWPORT,
+				VK_DYNAMIC_STATE_SCISSOR
+			};
+
+			VkPipelineDynamicStateCreateInfo dynamicStateCreateInfo{};
+			dynamicStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
+			dynamicStateCreateInfo.dynamicStateCount = dynamicStatesCount;
+			dynamicStateCreateInfo.pDynamicStates = dynamicStates.data();
+			
+			graphicsPipelineCreateInfo.pDynamicState = &dynamicStateCreateInfo;
+		}
+
+		{
+			VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo{};
+			pipelineLayoutCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+
+			assert(vkCreatePipelineLayout(m_LogicalDevice->GetVulkanDevice(), &pipelineLayoutCreateInfo, nullptr, &m_PipelineLayout) == VK_SUCCESS);
+			graphicsPipelineCreateInfo.layout = m_PipelineLayout;
+		}
+
+		{
+			VkPipelineRasterizationStateCreateInfo rasterizationStateCreateInfo{};
+			rasterizationStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
+			rasterizationStateCreateInfo.rasterizerDiscardEnable = VK_FALSE;
+			rasterizationStateCreateInfo.depthClampEnable = VK_FALSE;
+			rasterizationStateCreateInfo.cullMode = VK_CULL_MODE_BACK_BIT;
+			rasterizationStateCreateInfo.polygonMode = VK_POLYGON_MODE_FILL;
+			rasterizationStateCreateInfo.frontFace = VK_FRONT_FACE_CLOCKWISE;
+			rasterizationStateCreateInfo.lineWidth = 1.0f;
+			rasterizationStateCreateInfo.depthBiasClamp = VK_FALSE;
+
+			graphicsPipelineCreateInfo.pRasterizationState = &rasterizationStateCreateInfo;
+		}
+
+		{
+			VkPipelineColorBlendStateCreateInfo colorBlendStateCreateInfo{};
+			colorBlendStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
+			colorBlendStateCreateInfo.
+		}
+
+		vkDestroyShaderModule(m_LogicalDevice->GetVulkanDevice(), vertexShaderModule, nullptr);
+		vkDestroyShaderModule(m_LogicalDevice->GetVulkanDevice(), fragmentShaderModule, nullptr);
+	}
+
+	VkShaderModule RendererContext::CreateShader(const std::vector<char>& shaderData)
+	{
+		VkShaderModuleCreateInfo shaderModuleCreateInfo{};
+		shaderModuleCreateInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
+		shaderModuleCreateInfo.codeSize = shaderData.size();
+		shaderModuleCreateInfo.pCode = reinterpret_cast<const uint32_t*>(shaderData.data());
+
+		VkShaderModule shaderModule;
+		assert(vkCreateShaderModule(m_LogicalDevice->GetVulkanDevice(), &shaderModuleCreateInfo, nullptr, &shaderModule) == VK_SUCCESS);
+		return shaderModule;
 	}
 }

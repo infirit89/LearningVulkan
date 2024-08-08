@@ -35,6 +35,17 @@ namespace LearningVulkan
 		void CreateSurface();
 		void CreateRenderPass();
 
+		VkCommandPool CreateCommandPool();
+
+		VkCommandBuffer AllocateCommandBuffer(VkCommandPool commandPool);
+		void RecordCommandBuffer(uint32_t imageIndex, VkCommandBuffer commandBuffer);
+		void CreateSyncObjects(VkSemaphore& swapchainImageAcquireSemaphore, VkSemaphore& queueReadySemaphore, VkFence& presentFence);
+
+		void CreatePerFrameObjects(uint32_t frameIndex);
+		void DrawFrame();
+		void CreateGraphicsPipeline();
+		VkShaderModule CreateShader(const std::vector<char>& shaderData);
+
 	private:
 		static VkInstance m_Instance;
 		VkDebugUtilsMessengerEXT m_DebugMessenger;
@@ -44,5 +55,19 @@ namespace LearningVulkan
 		PhysicalDevice* m_PhysicalDevice;
 		Swapchain* m_Swapchain;
 		std::vector<Framebuffer*> m_Framebuffers;
+
+		VkPipelineLayout m_PipelineLayout;
+		VkPipeline m_Pipeline;
+
+		struct PerFrameData
+		{
+			VkCommandBuffer CommandBuffer;
+			VkCommandPool CommandPool;
+			VkFence PresentFence;
+			VkSemaphore SwapchainImageAcquireSemaphore;
+			VkSemaphore QueueReadySemaphore;
+		};
+
+		std::vector<PerFrameData> m_PerFrameData;
 	};
 }

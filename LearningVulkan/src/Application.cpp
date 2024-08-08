@@ -23,20 +23,6 @@ namespace LearningVulkan
 {
 	Application* Application::m_Instance;
 
-	static std::vector<char> ReadShaderFile(const std::filesystem::path& shaderPath) 
-	{
-		std::ifstream file(shaderPath, std::ios::ate | std::ios::binary);
-
-		assert(file.is_open());
-
-		size_t fileSize = file.tellg();
-		std::vector<char> fileData(fileSize);
-		file.seekg(0);
-		file.read(fileData.data(), fileSize);
-
-		return fileData;
-	}
-
 	Application::Application()
 	{
 		m_Instance = this;

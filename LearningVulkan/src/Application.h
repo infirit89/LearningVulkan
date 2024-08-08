@@ -26,34 +26,11 @@ namespace LearningVulkan
 
 	private:
 		void SetupRenderer();
-		VkCommandPool CreateCommandPool();
-
-		VkCommandBuffer AllocateCommandBuffer(VkCommandPool commandPool);
-		void RecordCommandBuffer(uint32_t imageIndex, VkCommandBuffer commandBuffer);
-		void CreateSyncObjects(VkSemaphore& swapchainImageAcquireSemaphore, VkSemaphore& queueReadySemaphore, VkFence& presentFence);
-
-		void CreatePerFrameObjects(uint32_t frameIndex);
-		void DrawFrame();
-		void CreateGraphicsPipeline();
-		VkShaderModule CreateShader(const std::vector<char>& shaderData);
 		void OnResize(uint32_t width, uint32_t height);
 		
 	private:
 		Window* m_Window;
 		RendererContext* m_RenderContext;
-		VkPipelineLayout m_PipelineLayout;
-		VkPipeline m_Pipeline;
-
-		struct PerFrameData
-		{
-			VkCommandBuffer CommandBuffer;
-			VkCommandPool CommandPool;
-			VkFence PresentFence;
-			VkSemaphore SwapchainImageAcquireSemaphore;
-			VkSemaphore QueueReadySemaphore;
-		};
-
-		std::vector<PerFrameData> m_PerFrameData;
 		uint32_t m_FrameIndex = 0;
 		bool m_Minimized = false;
 
