@@ -18,63 +18,68 @@
 
 namespace LearningVulkan
 {
+	namespace
+	{
+		VkBool32 VKAPI_CALL DebugCallback(VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity, VkDebugUtilsMessageTypeFlagsEXT messageType,
+			const VkDebugUtilsMessengerCallbackDataEXT* callbackData, void* userData)
+		{
+			switch (messageSeverity)
+			{
+			case VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT:
+				std::cerr << "validation trace: " << callbackData->pMessage << '\n';
+				break;
+			case VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT:
+				std::cerr << "validation info: " << callbackData->pMessage << '\n';
+				break;
+			case VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT:
+				std::cerr << "validation warning: " << callbackData->pMessage << '\n';
+				break;
+			case VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT:
+				std::cerr << "validation error: " << callbackData->pMessage << '\n';
+				break;
+			}
+
+			return VK_FALSE;
+		}
+
+		void SetupDebugUtilsMessengerCreateInfo(VkDebugUtilsMessengerCreateInfoEXT& messengerCreateInfo)
+		{
+			messengerCreateInfo.pfnUserCallback = DebugCallback;
+			messengerCreateInfo.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT;
+			messengerCreateInfo.messageSeverity =
+				VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT
+				| VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT
+				| VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT;
+
+			messengerCreateInfo.messageType =
+				VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT
+				| VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT
+				| VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT;
+		}
+
+		VkResult CreateDebugUtilsMessanger(VkInstance instance, const VkDebugUtilsMessengerCreateInfoEXT* messangerCreateInfo,
+			const VkAllocationCallbacks* allocator, VkDebugUtilsMessengerEXT* debugMessanger)
+		{
+			PFN_vkCreateDebugUtilsMessengerEXT func = reinterpret_cast<PFN_vkCreateDebugUtilsMessengerEXT>(vkGetInstanceProcAddr(instance, "vkCreateDebugUtilsMessengerEXT"));
+			assert(func);
+
+			return func(instance, messangerCreateInfo, allocator, debugMessanger);
+		}
+
+		void DestroyDebugUtilsMessanger(VkInstance instance, VkDebugUtilsMessengerEXT debugMessenger, const VkAllocationCallbacks* allocator)
+		{
+			PFN_vkDestroyDebugUtilsMessengerEXT func = reinterpret_cast<PFN_vkDestroyDebugUtilsMessengerEXT>(
+				vkGetInstanceProcAddr(
+					instance, "vkDestroyDebugUtilsMessengerEXT"));
+			assert(func);
+
+			func(instance, debugMessenger, allocator);
+		}
+	}
+
 	VkInstance RendererContext::m_Instance;
 	VkSurfaceKHR RendererContext::m_Surface;
 	LogicalDevice* RendererContext::m_LogicalDevice;
-
-	static VkBool32 VKAPI_CALL DebugCallback(VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity, VkDebugUtilsMessageTypeFlagsEXT messageType,
-		const VkDebugUtilsMessengerCallbackDataEXT* callbackData, void* userData)
-	{
-		switch (messageSeverity)
-		{
-		case VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT:
-			std::cerr << "validation trace: " << callbackData->pMessage << '\n';
-			break;
-		case VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT:
-			std::cerr << "validation info: " << callbackData->pMessage << '\n';
-			break;
-		case VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT:
-			std::cerr << "validation warning: " << callbackData->pMessage << '\n';
-			break;
-		case VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT:
-			std::cerr << "validation error: " << callbackData->pMessage << '\n';
-			break;
-		}
-
-		return VK_FALSE;
-	}
-
-	static void SetupDebugUtilsMessengerCreateInfo(VkDebugUtilsMessengerCreateInfoEXT& messengerCreateInfo)
-	{
-		messengerCreateInfo.pfnUserCallback = DebugCallback;
-		messengerCreateInfo.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT;
-		messengerCreateInfo.messageSeverity =
-			VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT
-			| VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT
-			| VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT;
-
-		messengerCreateInfo.messageType =
-			VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT
-			| VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT
-			| VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT;
-	}
-
-	static VkResult CreateDebugUtilsMessanger(VkInstance instance, const VkDebugUtilsMessengerCreateInfoEXT* messangerCreateInfo,
-		const VkAllocationCallbacks* allocator, VkDebugUtilsMessengerEXT* debugMessanger)
-	{
-		PFN_vkCreateDebugUtilsMessengerEXT func = reinterpret_cast<PFN_vkCreateDebugUtilsMessengerEXT>(vkGetInstanceProcAddr(instance, "vkCreateDebugUtilsMessengerEXT"));
-		assert(func);
-
-		return func(instance, messangerCreateInfo, allocator, debugMessanger);
-	}
-
-	static void DestroyDebugUtilsMessanger(VkInstance instance, VkDebugUtilsMessengerEXT debugMessenger, const VkAllocationCallbacks* allocator)
-	{
-		PFN_vkDestroyDebugUtilsMessengerEXT func = reinterpret_cast<PFN_vkDestroyDebugUtilsMessengerEXT>(vkGetInstanceProcAddr(instance, "vkDestroyDebugUtilsMessengerEXT"));
-		assert(func);
-
-		func(instance, debugMessenger, allocator);
-	}
 
 	RendererContext::RendererContext(std::string_view applicationName)
 	{
@@ -98,10 +103,28 @@ namespace LearningVulkan
 				extent.width, extent.height);
 			m_Framebuffers.push_back(framebuffer);
 		}
+
+		m_PerFrameData.resize(m_Swapchain->GetImageViews().size());
+		for (size_t i = 0; i < m_Swapchain->GetImageViews().size(); ++i)
+			CreatePerFrameObjects(i);
+
+		CreateGraphicsPipeline();
 	}
 
 	RendererContext::~RendererContext()
 	{
+		for (const PerFrameData& data : m_PerFrameData)
+		{
+			vkDestroySemaphore(m_LogicalDevice->GetVulkanDevice(), data.SwapchainImageAcquireSemaphore, nullptr);
+			vkDestroySemaphore(m_LogicalDevice->GetVulkanDevice(), data.QueueReadySemaphore, nullptr);
+			vkDestroyFence(m_LogicalDevice->GetVulkanDevice(), data.PresentFence, nullptr);
+			vkFreeCommandBuffers(m_LogicalDevice->GetVulkanDevice(), data.CommandPool, 1, &data.CommandBuffer);
+			vkDestroyCommandPool(m_LogicalDevice->GetVulkanDevice(), data.CommandPool, nullptr);
+		}
+
+		vkDestroyPipeline(m_LogicalDevice->GetVulkanDevice(), m_Pipeline, nullptr);
+		vkDestroyPipelineLayout(m_LogicalDevice->GetVulkanDevice(), m_PipelineLayout, nullptr);
+		
 		for (const auto& framebuffer : m_Framebuffers)
 			delete framebuffer;
 
@@ -115,7 +138,7 @@ namespace LearningVulkan
 		vkDestroyInstance(m_Instance, nullptr);
 	}
 
-	void RendererContext::Resize(uint32_t width, uint32_t height)
+	void RendererContext::Resize(uint32_t width, uint32_t height) const
 	{
 		m_Swapchain->Recreate(width, height);
 		uint32_t index = 0;
@@ -228,7 +251,7 @@ namespace LearningVulkan
 		assert(vkCreateRenderPass(m_LogicalDevice->GetVulkanDevice(), &renderPassCreateInfo, nullptr, &m_RenderPass) == VK_SUCCESS);
 	}
 
-	VkCommandPool RendererContext::CreateCommandPool()
+	VkCommandPool RendererContext::CreateCommandPool() const
 	{
 		const QueueFamilyIndices& queueFamilies = m_PhysicalDevice->GetQueueFamilyIndices();
 		VkCommandPoolCreateInfo commandPoolCreateInfo{};
@@ -300,6 +323,7 @@ namespace LearningVulkan
 	void RendererContext::DrawFrame()
 	{
 	}
+
 	void RendererContext::CreateGraphicsPipeline()
 	{
 		VkGraphicsPipelineCreateInfo graphicsPipelineCreateInfo{};
@@ -325,15 +349,14 @@ namespace LearningVulkan
 			fragmentShaderStageCreateInfo.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
 			fragmentShaderStageCreateInfo.pName = "main";
 
-			constexpr size_t shaderStagesCount = 2;
-			VkPipelineShaderStageCreateInfo shaderStages[shaderStagesCount] =
+			std::array shaderStages =
 			{
 				vertexShaderStageCreateInfo,
 				fragmentShaderStageCreateInfo
 			};
 
-			graphicsPipelineCreateInfo.pStages = shaderStages;
-			graphicsPipelineCreateInfo.stageCount = shaderStagesCount;
+			graphicsPipelineCreateInfo.pStages = shaderStages.data();
+			graphicsPipelineCreateInfo.stageCount = shaderStages.size();
 		}
 
 
@@ -353,8 +376,7 @@ namespace LearningVulkan
 		}
 
 		{
-			constexpr size_t dynamicStatesCount = 2;
-			std::array<VkDynamicState, dynamicStatesCount> dynamicStates =
+			std::array dynamicStates =
 			{
 				VK_DYNAMIC_STATE_VIEWPORT,
 				VK_DYNAMIC_STATE_SCISSOR
@@ -362,7 +384,7 @@ namespace LearningVulkan
 
 			VkPipelineDynamicStateCreateInfo dynamicStateCreateInfo{};
 			dynamicStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
-			dynamicStateCreateInfo.dynamicStateCount = dynamicStatesCount;
+			dynamicStateCreateInfo.dynamicStateCount = dynamicStates.size();
 			dynamicStateCreateInfo.pDynamicStates = dynamicStates.data();
 			
 			graphicsPipelineCreateInfo.pDynamicState = &dynamicStateCreateInfo;
@@ -391,10 +413,95 @@ namespace LearningVulkan
 		}
 
 		{
+			VkPipelineViewportStateCreateInfo viewportStateCreateInfo{};
+			viewportStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
+			// not setting the actual viewport and scissor states just how many there will be
+			// that's because both are dynamic and will be specified later
+			viewportStateCreateInfo.scissorCount = 1;
+			viewportStateCreateInfo.viewportCount = 1;
+
+			graphicsPipelineCreateInfo.pViewportState = &viewportStateCreateInfo;
+		}
+
+		{
+			VkPipelineRasterizationStateCreateInfo rasterizationStateCreateInfo{};
+			rasterizationStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
+
+			// if true, then the fragments outside the depth range (the near and far planes) will be clamped, else they will be discarded
+			// using this requires a gpu feature
+			rasterizationStateCreateInfo.depthClampEnable = VK_FALSE;
+			rasterizationStateCreateInfo.rasterizerDiscardEnable = VK_FALSE;
+
+			rasterizationStateCreateInfo.polygonMode = VK_POLYGON_MODE_FILL;
+			rasterizationStateCreateInfo.lineWidth = 1.0f;
+			rasterizationStateCreateInfo.cullMode = VK_CULL_MODE_BACK_BIT;
+			rasterizationStateCreateInfo.frontFace = VK_FRONT_FACE_CLOCKWISE;
+			rasterizationStateCreateInfo.depthBiasEnable = VK_FALSE;
+
+			graphicsPipelineCreateInfo.pRasterizationState = &rasterizationStateCreateInfo;
+		}
+
+		{
+			VkPipelineMultisampleStateCreateInfo multisampleStateCreateInfo{};
+			multisampleStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
+			multisampleStateCreateInfo.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
+
+			graphicsPipelineCreateInfo.pMultisampleState = &multisampleStateCreateInfo;
+		}
+
+		{
+			// TODO:
+			graphicsPipelineCreateInfo.pDepthStencilState = nullptr;
+		}
+
+		{
+			VkPipelineColorBlendAttachmentState colorBlendAttachmentState{};
+
+			// specifies to which color components to write to
+			colorBlendAttachmentState.colorWriteMask =
+				VK_COLOR_COMPONENT_R_BIT
+				| VK_COLOR_COMPONENT_G_BIT
+				| VK_COLOR_COMPONENT_B_BIT
+				| VK_COLOR_COMPONENT_A_BIT;
+
+			colorBlendAttachmentState.blendEnable = VK_FALSE;
+			/* color blending op
+			VkPipelineColorBlendAttachmentState pipelineColorBlendAttachmentState2{};
+			pipelineColorBlendAttachmentState2.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
+			pipelineColorBlendAttachmentState2.blendEnable = VK_TRUE;
+			pipelineColorBlendAttachmentState2.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
+			pipelineColorBlendAttachmentState2.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+			pipelineColorBlendAttachmentState2.colorBlendOp = VK_BLEND_OP_ADD;
+			pipelineColorBlendAttachmentState2.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
+			pipelineColorBlendAttachmentState2.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
+			pipelineColorBlendAttachmentState2.alphaBlendOp = VK_BLEND_OP_ADD;
+			*/
+
+
 			VkPipelineColorBlendStateCreateInfo colorBlendStateCreateInfo{};
 			colorBlendStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
-			colorBlendStateCreateInfo.
+			colorBlendStateCreateInfo.attachmentCount = 1;
+			colorBlendStateCreateInfo.pAttachments = &colorBlendAttachmentState;
+			colorBlendStateCreateInfo.logicOpEnable = VK_FALSE;
+
+			graphicsPipelineCreateInfo.pColorBlendState = &colorBlendStateCreateInfo;
 		}
+
+		{
+			VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo{};
+			pipelineLayoutCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+
+			assert(vkCreatePipelineLayout(m_LogicalDevice->GetVulkanDevice(), &pipelineLayoutCreateInfo, nullptr, &m_PipelineLayout) == VK_SUCCESS);
+
+			graphicsPipelineCreateInfo.layout = m_PipelineLayout;
+		}
+
+		{
+			graphicsPipelineCreateInfo.renderPass = m_RenderPass;
+			graphicsPipelineCreateInfo.subpass = 0;
+		}
+
+		assert(vkCreateGraphicsPipelines(m_LogicalDevice->GetVulkanDevice(), VK_NULL_HANDLE, 1, &graphicsPipelineCreateInfo, nullptr, &m_Pipeline) == VK_SUCCESS);
 
 		vkDestroyShaderModule(m_LogicalDevice->GetVulkanDevice(), vertexShaderModule, nullptr);
 		vkDestroyShaderModule(m_LogicalDevice->GetVulkanDevice(), fragmentShaderModule, nullptr);

@@ -11,6 +11,16 @@
 
 namespace LearningVulkan 
 {
+	// TODO: move inside render context
+	struct PerFrameData
+	{
+		VkCommandBuffer CommandBuffer;
+		VkCommandPool CommandPool;
+		VkFence PresentFence;
+		VkSemaphore SwapchainImageAcquireSemaphore;
+		VkSemaphore QueueReadySemaphore;
+	};
+
 	class RendererContext 
 	{
 	public:
@@ -25,26 +35,29 @@ namespace LearningVulkan
 		Swapchain* GetSwapchain() const { return m_Swapchain; }
 		VkRenderPass GetRenderPass() const { return m_RenderPass; }
 
-		void Resize(uint32_t width, uint32_t height);
+		void Resize(uint32_t width, uint32_t height) const;
 		const std::vector<Framebuffer*>& GetFramebuffers() const { return m_Framebuffers; }
+		const PerFrameData& GetPerFrameData(size_t index) const { return m_PerFrameData.at(index); }
+		size_t GetPerFrameDataSize() const { return m_PerFrameData.size(); }
+		const VkPipeline& GetGraphicsPipeline() const { return m_Pipeline; }
 
 	private:
-		void CreateVulkanInstance(std::string_view applicationName);
-		bool CheckLayersAvailability();
+		static void CreateVulkanInstance(std::string_view applicationName);
+		static bool CheckLayersAvailability();
 		void SetupDebugMessenger();
-		void CreateSurface();
+		static void CreateSurface();
 		void CreateRenderPass();
 
-		VkCommandPool CreateCommandPool();
+		VkCommandPool CreateCommandPool() const;
 
-		VkCommandBuffer AllocateCommandBuffer(VkCommandPool commandPool);
-		void RecordCommandBuffer(uint32_t imageIndex, VkCommandBuffer commandBuffer);
-		void CreateSyncObjects(VkSemaphore& swapchainImageAcquireSemaphore, VkSemaphore& queueReadySemaphore, VkFence& presentFence);
+		static VkCommandBuffer AllocateCommandBuffer(VkCommandPool commandPool);
+		static void RecordCommandBuffer(uint32_t imageIndex, VkCommandBuffer commandBuffer);
+		static void CreateSyncObjects(VkSemaphore& swapchainImageAcquireSemaphore, VkSemaphore& queueReadySemaphore, VkFence& presentFence);
 
 		void CreatePerFrameObjects(uint32_t frameIndex);
 		void DrawFrame();
 		void CreateGraphicsPipeline();
-		VkShaderModule CreateShader(const std::vector<char>& shaderData);
+		static VkShaderModule CreateShader(const std::vector<char>& shaderData);
 
 	private:
 		static VkInstance m_Instance;
@@ -58,15 +71,6 @@ namespace LearningVulkan
 
 		VkPipelineLayout m_PipelineLayout;
 		VkPipeline m_Pipeline;
-
-		struct PerFrameData
-		{
-			VkCommandBuffer CommandBuffer;
-			VkCommandPool CommandPool;
-			VkFence PresentFence;
-			VkSemaphore SwapchainImageAcquireSemaphore;
-			VkSemaphore QueueReadySemaphore;
-		};
 
 		std::vector<PerFrameData> m_PerFrameData;
 	};

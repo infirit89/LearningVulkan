@@ -27,6 +27,8 @@ namespace LearningVulkan
 	private:
 		void SetupRenderer();
 		void OnResize(uint32_t width, uint32_t height);
+		void DrawFrame();
+		void RecordCommandBuffer(uint32_t index, VkCommandBuffer commandBuffer);
 		
 	private:
 		Window* m_Window;

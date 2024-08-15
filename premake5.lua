@@ -1,3 +1,5 @@
+require "export-compile-commands"
+
 workspace "LearningVulkan"
 
     startproject "LearningVulkan"

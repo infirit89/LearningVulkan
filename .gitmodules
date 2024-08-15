@@ -10,3 +10,6 @@
 [submodule "Vendor/optick"]
 	path = Vendor/optick
 	url = https://github.com/infirit89/optick
+[submodule "export-compile-commands"]
+	path = export-compile-commands
+	url = https://github.com/tarruda/premake-export-compile-commands
