@@ -129,11 +129,14 @@ namespace LearningVulkan
 			delete framebuffer;
 
 		vkDestroyRenderPass(m_LogicalDevice->GetVulkanDevice(), m_RenderPass, nullptr);
+
 		delete m_Swapchain;
 		delete m_LogicalDevice;
-		delete m_PhysicalDevice;
 
 		vkDestroySurfaceKHR(m_Instance, m_Surface, nullptr);
+
+		delete m_PhysicalDevice;
+
 		DestroyDebugUtilsMessanger(m_Instance, m_DebugMessenger, nullptr);
 		vkDestroyInstance(m_Instance, nullptr);
 	}
@@ -222,7 +225,7 @@ namespace LearningVulkan
 		colorAttachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
 		colorAttachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
 
-		VkAttachmentReference attachmentRef{};
+		VkAttachmentReference attachmentRef;
 		attachmentRef.attachment = 0;
 		attachmentRef.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 
@@ -388,14 +391,6 @@ namespace LearningVulkan
 			dynamicStateCreateInfo.pDynamicStates = dynamicStates.data();
 			
 			graphicsPipelineCreateInfo.pDynamicState = &dynamicStateCreateInfo;
-		}
-
-		{
-			VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo{};
-			pipelineLayoutCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-
-			assert(vkCreatePipelineLayout(m_LogicalDevice->GetVulkanDevice(), &pipelineLayoutCreateInfo, nullptr, &m_PipelineLayout) == VK_SUCCESS);
-			graphicsPipelineCreateInfo.layout = m_PipelineLayout;
 		}
 
 		{

@@ -57,9 +57,6 @@ namespace LearningVulkan
 	void Application::SetupRenderer()
 	{
 		m_RenderContext = new RendererContext("Learning Vulkan");
-		//m_PhysicalDevice = 
-		//SetupLogicalDevice();
-		Swapchain* swapchain = m_RenderContext->GetSwapchain();
 	}
 
 
@@ -108,7 +105,7 @@ namespace LearningVulkan
 
 		{
 			OPTICK_GPU_EVENT("Set scissor state");
-			VkRect2D scissorRect{};
+			VkRect2D scissorRect;
 			scissorRect.offset = { 0, 0 };
 			scissorRect.extent = swapchainExtent;
 			vkCmdSetScissor(commandBuffer, 0, 1, &scissorRect);
@@ -138,7 +135,6 @@ namespace LearningVulkan
 				m_RenderContext->GetSwapchain()->AcquireNextImage(data.SwapchainImageAcquireSemaphore, imageIndex);
 			}
 
-			std::cout << imageIndex << '\n';
 			vkResetCommandBuffer(data.CommandBuffer, 0);
 			RecordCommandBuffer(imageIndex, data.CommandBuffer);
 			VkSubmitInfo submitInfo{};
