@@ -16,6 +16,8 @@
 #include <fstream>
 #include <filesystem>
 
+#include "Vertex.h"
+
 namespace LearningVulkan
 {
 	namespace
@@ -75,6 +77,18 @@ namespace LearningVulkan
 
 			func(instance, debugMessenger, allocator);
 		}
+
+		uint32_t FindMemoryType(uint32_t memoryMask, VkMemoryPropertyFlags properties, VkPhysicalDevice physicalDevice)
+		{
+			VkPhysicalDeviceMemoryProperties memoryProperties;
+			vkGetPhysicalDeviceMemoryProperties(physicalDevice, &memoryProperties);
+
+			for (uint32_t i = 0; i < memoryProperties.memoryTypeCount; i++)
+				if (memoryMask & (1 << i) && (memoryProperties.memoryTypes[i].propertyFlags & properties) == properties)
+					return i;
+
+			assert(false);
+		}
 	}
 
 	VkInstance RendererContext::m_Instance;
@@ -109,6 +123,7 @@ namespace LearningVulkan
 			CreatePerFrameObjects(i);
 
 		CreateGraphicsPipeline();
+		CreateVertexBuffer();
 	}
 
 	RendererContext::~RendererContext()
@@ -131,6 +146,10 @@ namespace LearningVulkan
 		vkDestroyRenderPass(m_LogicalDevice->GetVulkanDevice(), m_RenderPass, nullptr);
 
 		delete m_Swapchain;
+
+		vkDestroyBuffer(m_LogicalDevice->GetVulkanDevice(), m_VertexBuffer, nullptr);
+		vkFreeMemory(m_LogicalDevice->GetVulkanDevice(), m_VertexBufferMemory, nullptr);
+
 		delete m_LogicalDevice;
 
 		vkDestroySurfaceKHR(m_Instance, m_Surface, nullptr);
@@ -282,6 +301,47 @@ namespace LearningVulkan
 
 	void RendererContext::RecordCommandBuffer(uint32_t imageIndex, VkCommandBuffer commandBuffer)
 	{
+		VkCommandBufferBeginInfo commandBufferInfo{};
+		commandBufferInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+
+		assert(vkBeginCommandBuffer(commandBuffer, &commandBufferInfo) == VK_SUCCESS);
+
+		VkRenderPassBeginInfo renderPassInfo{};
+		renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+		renderPassInfo.framebuffer = m_Framebuffers.at(imageIndex)->GetVulkanFramebuffer();
+		renderPassInfo.renderPass = m_RenderPass;
+		renderPassInfo.renderArea.extent = m_Swapchain->GetExtent();
+		renderPassInfo.renderArea.offset = { 0, 0 };
+
+		VkClearValue clearColor{};
+		clearColor.color = { 0.1f, 0.1f, 0.1f, 1.0f };
+		renderPassInfo.clearValueCount = 1;
+		renderPassInfo.pClearValues = &clearColor;
+
+		vkCmdBeginRenderPass(commandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
+		vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_Pipeline);
+
+		VkDeviceSize deviceSizes[] = { 0 };
+		vkCmdBindVertexBuffers(commandBuffer, 0, 1, &m_VertexBuffer, deviceSizes);
+
+		VkViewport viewport;
+		viewport.x = 0;
+		viewport.y = 0;
+		viewport.width = m_Swapchain->GetExtent().width;
+		viewport.height = m_Swapchain->GetExtent().height;
+		viewport.minDepth = 0.0f;
+		viewport.maxDepth = 1.0f;
+		vkCmdSetViewport(commandBuffer, 0, 1, &viewport);
+
+		VkRect2D scissor;
+		scissor.offset = { 0, 0 };
+		scissor.extent = m_Swapchain->GetExtent();
+		vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
+
+		vkCmdDraw(commandBuffer, m_Vertices.size(), 1, 0, 0);
+
+		vkCmdEndRenderPass(commandBuffer);
+		vkEndCommandBuffer(commandBuffer);
 	}
 
 	void RendererContext::CreateSyncObjects(VkSemaphore& swapchainImageAcquireSemaphore, VkSemaphore& queueReadySemaphore, VkFence& presentFence)
@@ -294,6 +354,7 @@ namespace LearningVulkan
 
 		VkFenceCreateInfo fenceCreateInfo{};
 		fenceCreateInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
+		fenceCreateInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
 
 		assert(vkCreateFence(m_LogicalDevice->GetVulkanDevice(), &fenceCreateInfo, nullptr, &presentFence) == VK_SUCCESS);
 	}
@@ -325,6 +386,31 @@ namespace LearningVulkan
 
 	void RendererContext::DrawFrame()
 	{
+		const PerFrameData& currentFrameData = m_PerFrameData.at(m_FrameIndex);
+		assert(vkWaitForFences(m_LogicalDevice->GetVulkanDevice(), 1, &currentFrameData.PresentFence, VK_TRUE, UINT64_MAX) == VK_SUCCESS);
+		vkResetFences(m_LogicalDevice->GetVulkanDevice(), 1, &currentFrameData.PresentFence);
+
+		uint32_t imageIndex;
+		m_Swapchain->AcquireNextImage(currentFrameData.SwapchainImageAcquireSemaphore, imageIndex);
+
+		vkResetCommandBuffer(currentFrameData.CommandBuffer, 0);
+		RecordCommandBuffer(imageIndex, currentFrameData.CommandBuffer);
+
+		VkSubmitInfo submitInfo{};
+		submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+		submitInfo.commandBufferCount = 1;
+		submitInfo.pCommandBuffers = &currentFrameData.CommandBuffer;
+		submitInfo.signalSemaphoreCount = 1;
+		submitInfo.pSignalSemaphores = &currentFrameData.QueueReadySemaphore;
+		submitInfo.waitSemaphoreCount = 1;
+		submitInfo.pWaitSemaphores = &currentFrameData.SwapchainImageAcquireSemaphore;
+		VkPipelineStageFlags waitStages = { VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };
+		submitInfo.pWaitDstStageMask = &waitStages;
+
+		assert(vkQueueSubmit(m_LogicalDevice->GetGraphicsQueue(), 1, &submitInfo, currentFrameData.PresentFence) == VK_SUCCESS);
+		m_Swapchain->Present(currentFrameData.QueueReadySemaphore, imageIndex);
+
+		m_FrameIndex = (m_FrameIndex + 1) % m_PerFrameData.size();
 	}
 
 	void RendererContext::CreateGraphicsPipeline()
@@ -366,6 +452,14 @@ namespace LearningVulkan
 		{
 			VkPipelineVertexInputStateCreateInfo vertexInputCreateInfo{};
 			vertexInputCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
+
+			vertexInputCreateInfo.vertexBindingDescriptionCount = 1;
+			VkVertexInputBindingDescription vertexBindingDescription = Vertex::GetBindingDescription();
+			vertexInputCreateInfo.pVertexBindingDescriptions = &vertexBindingDescription;
+
+			std::array vertexAttributeDescription = Vertex::GetAttributeDescriptions();
+			vertexInputCreateInfo.vertexAttributeDescriptionCount = vertexAttributeDescription.size();
+			vertexInputCreateInfo.pVertexAttributeDescriptions = vertexAttributeDescription.data();
 
 			graphicsPipelineCreateInfo.pVertexInputState = &vertexInputCreateInfo;
 		}
@@ -512,5 +606,37 @@ namespace LearningVulkan
 		VkShaderModule shaderModule;
 		assert(vkCreateShaderModule(m_LogicalDevice->GetVulkanDevice(), &shaderModuleCreateInfo, nullptr, &shaderModule) == VK_SUCCESS);
 		return shaderModule;
+	}
+
+	void RendererContext::CreateVertexBuffer()
+	{
+		VkBufferCreateInfo bufferCreateInfo{};
+		bufferCreateInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+		bufferCreateInfo.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
+		bufferCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+		bufferCreateInfo.size = sizeof(Vertex) * m_Vertices.size();
+
+		assert(vkCreateBuffer(m_LogicalDevice->GetVulkanDevice(), &bufferCreateInfo, nullptr, &m_VertexBuffer) == VK_SUCCESS);
+
+		VkMemoryRequirements memoryRequirements;
+		vkGetBufferMemoryRequirements(m_LogicalDevice->GetVulkanDevice(), m_VertexBuffer, &memoryRequirements);
+
+		VkMemoryAllocateInfo allocateInfo{};
+		allocateInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+		allocateInfo.allocationSize = memoryRequirements.size;
+		allocateInfo.memoryTypeIndex = FindMemoryType(
+			memoryRequirements.memoryTypeBits, 
+			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, 
+			m_PhysicalDevice->GetPhysicalDevice());
+
+
+		assert(vkAllocateMemory(m_LogicalDevice->GetVulkanDevice(), &allocateInfo, nullptr, &m_VertexBufferMemory) == VK_SUCCESS);
+
+		assert(vkBindBufferMemory(m_LogicalDevice->GetVulkanDevice(), m_VertexBuffer, m_VertexBufferMemory, 0) == VK_SUCCESS);
+
+		void* data;
+		vkMapMemory(m_LogicalDevice->GetVulkanDevice(), m_VertexBufferMemory, 0, memoryRequirements.size, 0, &data);
+		memcpy(data, m_Vertices.data(), sizeof(Vertex) * m_Vertices.size());
+		vkUnmapMemory(m_LogicalDevice->GetVulkanDevice(), m_VertexBufferMemory);
 	}
 }

@@ -9,6 +9,8 @@
 #include <string_view>
 #include <vector>
 
+#include "Vertex.h"
+
 namespace LearningVulkan 
 {
 	// TODO: move inside render context
@@ -40,6 +42,7 @@ namespace LearningVulkan
 		const PerFrameData& GetPerFrameData(size_t index) const { return m_PerFrameData.at(index); }
 		size_t GetPerFrameDataSize() const { return m_PerFrameData.size(); }
 		const VkPipeline& GetGraphicsPipeline() const { return m_Pipeline; }
+		void DrawFrame();
 
 	private:
 		static void CreateVulkanInstance(std::string_view applicationName);
@@ -51,13 +54,13 @@ namespace LearningVulkan
 		VkCommandPool CreateCommandPool() const;
 
 		static VkCommandBuffer AllocateCommandBuffer(VkCommandPool commandPool);
-		static void RecordCommandBuffer(uint32_t imageIndex, VkCommandBuffer commandBuffer);
+		void RecordCommandBuffer(uint32_t imageIndex, VkCommandBuffer commandBuffer);
 		static void CreateSyncObjects(VkSemaphore& swapchainImageAcquireSemaphore, VkSemaphore& queueReadySemaphore, VkFence& presentFence);
 
 		void CreatePerFrameObjects(uint32_t frameIndex);
-		void DrawFrame();
 		void CreateGraphicsPipeline();
 		static VkShaderModule CreateShader(const std::vector<char>& shaderData);
+		void CreateVertexBuffer();
 
 	private:
 		static VkInstance m_Instance;
@@ -71,7 +74,16 @@ namespace LearningVulkan
 
 		VkPipelineLayout m_PipelineLayout;
 		VkPipeline m_Pipeline;
+		uint32_t m_FrameIndex = 0;
 
 		std::vector<PerFrameData> m_PerFrameData;
+		VkBuffer m_VertexBuffer;
+		VkDeviceMemory m_VertexBufferMemory;
+
+		std::vector<Vertex> m_Vertices = {
+			{.Position = { 0.0, -0.5 }, .Color = { 1.0, 0.0, 0.0 } },
+			{.Position = { 0.5, 0.5 }, .Color = { 0.0, 1.0, 0.0 } },
+			{.Position = { -0.5, 0.5 }, .Color = { 0.0, 0.0, 1.0 } }
+		};
 	};
 }

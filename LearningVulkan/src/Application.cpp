@@ -45,8 +45,8 @@ namespace LearningVulkan
 			float deltaTime = currentFrameTime - lastFrameTime;
 			lastFrameTime = currentFrameTime;
 
-			if(!m_Minimized)
-				DrawFrame();
+			if (!m_Minimized)
+				m_RenderContext->DrawFrame();
 
 			m_Window->PollEvents();
 		}
@@ -77,7 +77,7 @@ namespace LearningVulkan
 		renderPassBeginInfo.framebuffer = m_RenderContext->GetFramebuffers().at(imageIndex)->GetVulkanFramebuffer();
 		renderPassBeginInfo.renderArea.offset = { 0, 0 };
 		renderPassBeginInfo.renderArea.extent = swapchainExtent;
-		VkClearValue clearValues{};
+		VkClearValue clearValues;
 		clearValues.color = { { 0.1f, 0.1f, 0.1f, 1.0f } };
 		renderPassBeginInfo.clearValueCount = 1;
 		renderPassBeginInfo.pClearValues = &clearValues;
@@ -92,7 +92,7 @@ namespace LearningVulkan
 
 		{
 			OPTICK_GPU_EVENT("Set viewport state");
-			VkViewport viewport{};
+			VkViewport viewport;
 			viewport.x = 0.0f;
 			viewport.y = 0.0f;
 			viewport.width = swapchainExtent.width;
@@ -127,9 +127,9 @@ namespace LearningVulkan
 	void Application::DrawFrame()
 	{
 		OPTICK_EVENT();
-		uint32_t imageIndex;
 		const PerFrameData& data = m_RenderContext->GetPerFrameData(m_FrameIndex);
 		{
+			uint32_t imageIndex;
 			{
 				OPTICK_GPU_EVENT("Acquire swapchain image");
 				m_RenderContext->GetSwapchain()->AcquireNextImage(data.SwapchainImageAcquireSemaphore, imageIndex);
