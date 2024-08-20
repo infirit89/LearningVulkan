@@ -13,7 +13,8 @@ namespace LearningVulkan
 
 		VkQueue GetGraphicsQueue() const { return m_GraphicsQueue; }
 		VkQueue GetPresentQueue() const { return m_PresentQueue; }
-		void WaitIdle();
+		VkQueue GetTransferQueue() const { return m_TransferQueue; }
+		void WaitIdle() const;
 		PhysicalDevice* GetPhysicalDevice() const { return m_PhysicalDevice; }
 
 	private:
@@ -23,6 +24,7 @@ namespace LearningVulkan
 		VkDevice m_LogicalDevice = VK_NULL_HANDLE;
 		VkQueue m_GraphicsQueue = VK_NULL_HANDLE;
 		VkQueue m_PresentQueue = VK_NULL_HANDLE;
+		VkQueue m_TransferQueue = VK_NULL_HANDLE;
 		PhysicalDevice* m_PhysicalDevice = nullptr;
 
 		friend class PhysicalDevice;

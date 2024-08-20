@@ -26,14 +26,25 @@ namespace LearningVulkan
 		float queuePriority = 1.0f;
 		graphicsQueueCreateInfo.pQueuePriorities = &queuePriority;
 
+		VkDeviceQueueCreateInfo transferQueueCreateInfo{};
+		transferQueueCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
+		transferQueueCreateInfo.queueFamilyIndex = m_QueueFamilyIndices.TransferFamily.value();
+		transferQueueCreateInfo.queueCount = 1;
+		transferQueueCreateInfo.pQueuePriorities = &queuePriority;
+
+		std::array queueCreateInfos = {
+			graphicsQueueCreateInfo,
+			transferQueueCreateInfo,
+		};
+
 		VkDeviceCreateInfo deviceCreateInfo{};
 		deviceCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
 
 		deviceCreateInfo.enabledLayerCount = VulkanUtils::LayerCount;
 		deviceCreateInfo.ppEnabledLayerNames = VulkanUtils::Layers.data();
 
-		deviceCreateInfo.queueCreateInfoCount = 1;
-		deviceCreateInfo.pQueueCreateInfos = &graphicsQueueCreateInfo;
+		deviceCreateInfo.queueCreateInfoCount = queueCreateInfos.size();
+		deviceCreateInfo.pQueueCreateInfos = queueCreateInfos.data();
 
 		deviceCreateInfo.enabledExtensionCount = VulkanUtils::DeviceExtensionsSize;
 		deviceCreateInfo.ppEnabledExtensionNames = VulkanUtils::DeviceExtensions.data();
@@ -56,6 +67,8 @@ namespace LearningVulkan
 		{
 			if (properties.queueFlags & VK_QUEUE_GRAPHICS_BIT)
 				queueFamilyIndices.GraphicsFamily = index;
+			else if (properties.queueFlags & VK_QUEUE_TRANSFER_BIT)
+				queueFamilyIndices.TransferFamily = index;
 
 			VkBool32 presentationSupported;
 			vkGetPhysicalDeviceSurfaceSupportKHR(physicalDevice, index, RendererContext::GetVulkanSurface(), &presentationSupported);

@@ -11,8 +11,8 @@ namespace LearningVulkan
 {
 	struct QueueFamilyIndices 
 	{
-		std::optional<uint32_t> GraphicsFamily, PresentationFamily;
-		bool IsComplete() const { return GraphicsFamily.has_value() && PresentationFamily.has_value(); }
+		std::optional<uint32_t> GraphicsFamily, PresentationFamily, TransferFamily;
+		bool IsComplete() const { return GraphicsFamily.has_value() && PresentationFamily.has_value() && TransferFamily.has_value(); }
 	};
 
 	struct SwapchainSupportDetails

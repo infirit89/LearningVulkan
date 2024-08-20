@@ -51,18 +51,21 @@ namespace LearningVulkan
 		static void CreateSurface();
 		void CreateRenderPass();
 
-		VkCommandPool CreateCommandPool() const;
+		VkCommandPool CreateCommandPool(VkCommandPoolCreateFlags commandPoolFlags, uint32_t queueFamilyIndex) const;
 
 		static VkCommandBuffer AllocateCommandBuffer(VkCommandPool commandPool);
-		void RecordCommandBuffer(uint32_t imageIndex, VkCommandBuffer commandBuffer);
+		void RecordCommandBuffer(uint32_t imageIndex, VkCommandBuffer commandBuffer) const;
 		static void CreateSyncObjects(VkSemaphore& swapchainImageAcquireSemaphore, VkSemaphore& queueReadySemaphore, VkFence& presentFence);
 
 		void CreatePerFrameObjects(uint32_t frameIndex);
 		void CreateGraphicsPipeline();
 		static VkShaderModule CreateShader(const std::vector<char>& shaderData);
+		void CreateBuffer(VkBufferUsageFlags usage, VkDeviceSize size, VkMemoryPropertyFlags memoryProperties, VkBuffer& buffer, VkDeviceMemory& bufferMemory);
 		void CreateVertexBuffer();
-
+		void CopyBuffer(VkBuffer sourceBuffer, VkBuffer destinationBuffer, VkDeviceSize size);
+		
 	private:
+		VkCommandPool m_TransferCommandPool;
 		static VkInstance m_Instance;
 		VkDebugUtilsMessengerEXT m_DebugMessenger;
 		static VkSurfaceKHR m_Surface;

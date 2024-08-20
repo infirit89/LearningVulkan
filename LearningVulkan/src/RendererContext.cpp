@@ -88,6 +88,21 @@ namespace LearningVulkan
 					return i;
 
 			assert(false);
+			return 0;
+		}
+
+		std::vector<char> ReadShaderFile(const std::filesystem::path& shaderPath)
+		{
+			std::ifstream file(shaderPath, std::ios::ate | std::ios::binary);
+
+			assert(file.is_open());
+
+			size_t fileSize = file.tellg();
+			std::vector<char> fileData(fileSize);
+			file.seekg(0);
+			file.read(fileData.data(), fileSize);
+
+			return fileData;
 		}
 	}
 
@@ -122,12 +137,17 @@ namespace LearningVulkan
 		for (size_t i = 0; i < m_Swapchain->GetImageViews().size(); ++i)
 			CreatePerFrameObjects(i);
 
+		const QueueFamilyIndices& queueFamilyIndices = m_PhysicalDevice->GetQueueFamilyIndices();
+		m_TransferCommandPool = CreateCommandPool(VK_COMMAND_POOL_CREATE_TRANSIENT_BIT, queueFamilyIndices.TransferFamily.value());
+
 		CreateGraphicsPipeline();
 		CreateVertexBuffer();
 	}
 
 	RendererContext::~RendererContext()
 	{
+		vkDestroyCommandPool(m_LogicalDevice->GetVulkanDevice(), m_TransferCommandPool, nullptr);
+
 		for (const PerFrameData& data : m_PerFrameData)
 		{
 			vkDestroySemaphore(m_LogicalDevice->GetVulkanDevice(), data.SwapchainImageAcquireSemaphore, nullptr);
@@ -273,13 +293,12 @@ namespace LearningVulkan
 		assert(vkCreateRenderPass(m_LogicalDevice->GetVulkanDevice(), &renderPassCreateInfo, nullptr, &m_RenderPass) == VK_SUCCESS);
 	}
 
-	VkCommandPool RendererContext::CreateCommandPool() const
+	VkCommandPool RendererContext::CreateCommandPool(VkCommandPoolCreateFlags commandPoolFlags, uint32_t queueFamilyIndex) const
 	{
-		const QueueFamilyIndices& queueFamilies = m_PhysicalDevice->GetQueueFamilyIndices();
 		VkCommandPoolCreateInfo commandPoolCreateInfo{};
 		commandPoolCreateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
-		commandPoolCreateInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
-		commandPoolCreateInfo.queueFamilyIndex = queueFamilies.GraphicsFamily.value();
+		commandPoolCreateInfo.flags = commandPoolFlags;
+		commandPoolCreateInfo.queueFamilyIndex = queueFamilyIndex;
 
 		VkCommandPool commandPool;
 		assert(vkCreateCommandPool(m_LogicalDevice->GetVulkanDevice(), &commandPoolCreateInfo, nullptr, &commandPool) == VK_SUCCESS);
@@ -299,7 +318,7 @@ namespace LearningVulkan
 		return commandBuffer;
 	}
 
-	void RendererContext::RecordCommandBuffer(uint32_t imageIndex, VkCommandBuffer commandBuffer)
+	void RendererContext::RecordCommandBuffer(uint32_t imageIndex, VkCommandBuffer commandBuffer) const
 	{
 		VkCommandBufferBeginInfo commandBufferInfo{};
 		commandBufferInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
@@ -359,24 +378,11 @@ namespace LearningVulkan
 		assert(vkCreateFence(m_LogicalDevice->GetVulkanDevice(), &fenceCreateInfo, nullptr, &presentFence) == VK_SUCCESS);
 	}
 
-	static std::vector<char> ReadShaderFile(const std::filesystem::path& shaderPath)
-	{
-		std::ifstream file(shaderPath, std::ios::ate | std::ios::binary);
-
-		assert(file.is_open());
-
-		size_t fileSize = file.tellg();
-		std::vector<char> fileData(fileSize);
-		file.seekg(0);
-		file.read(fileData.data(), fileSize);
-
-		return fileData;
-	}
-
 	void RendererContext::CreatePerFrameObjects(uint32_t frameIndex)
 	{
 		PerFrameData& data = m_PerFrameData.at(frameIndex);
-		data.CommandPool = CreateCommandPool();
+		const QueueFamilyIndices& queueFamilyIndices = m_PhysicalDevice->GetQueueFamilyIndices();
+		data.CommandPool = CreateCommandPool(VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT, queueFamilyIndices.GraphicsFamily.value());
 		data.CommandBuffer = AllocateCommandBuffer(data.CommandPool);
 		CreateSyncObjects(
 			data.SwapchainImageAcquireSemaphore,
@@ -608,35 +614,104 @@ namespace LearningVulkan
 		return shaderModule;
 	}
 
-	void RendererContext::CreateVertexBuffer()
+	void RendererContext::CreateBuffer(VkBufferUsageFlags usage, VkDeviceSize size,
+		VkMemoryPropertyFlags memoryProperties, VkBuffer& buffer, VkDeviceMemory& bufferMemory)
 	{
+		const QueueFamilyIndices& queueFamilyIndices = m_PhysicalDevice->GetQueueFamilyIndices();
+
+		std::array queueFamilyIndicesArr = {
+			queueFamilyIndices.GraphicsFamily.value(),
+			queueFamilyIndices.TransferFamily.value(),
+		};
+
 		VkBufferCreateInfo bufferCreateInfo{};
 		bufferCreateInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-		bufferCreateInfo.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
-		bufferCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-		bufferCreateInfo.size = sizeof(Vertex) * m_Vertices.size();
+		bufferCreateInfo.usage = usage;
+		bufferCreateInfo.sharingMode = VK_SHARING_MODE_CONCURRENT;
+		bufferCreateInfo.size = size;
+		bufferCreateInfo.queueFamilyIndexCount = queueFamilyIndicesArr.size();
+		bufferCreateInfo.pQueueFamilyIndices = queueFamilyIndicesArr.data();
 
-		assert(vkCreateBuffer(m_LogicalDevice->GetVulkanDevice(), &bufferCreateInfo, nullptr, &m_VertexBuffer) == VK_SUCCESS);
+		assert(vkCreateBuffer(m_LogicalDevice->GetVulkanDevice(), &bufferCreateInfo, nullptr, &buffer) == VK_SUCCESS);
 
 		VkMemoryRequirements memoryRequirements;
-		vkGetBufferMemoryRequirements(m_LogicalDevice->GetVulkanDevice(), m_VertexBuffer, &memoryRequirements);
+		vkGetBufferMemoryRequirements(m_LogicalDevice->GetVulkanDevice(), buffer, &memoryRequirements);
 
 		VkMemoryAllocateInfo allocateInfo{};
 		allocateInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
 		allocateInfo.allocationSize = memoryRequirements.size;
 		allocateInfo.memoryTypeIndex = FindMemoryType(
-			memoryRequirements.memoryTypeBits, 
-			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, 
+			memoryRequirements.memoryTypeBits,
+			memoryProperties,
 			m_PhysicalDevice->GetPhysicalDevice());
 
 
-		assert(vkAllocateMemory(m_LogicalDevice->GetVulkanDevice(), &allocateInfo, nullptr, &m_VertexBufferMemory) == VK_SUCCESS);
+		assert(vkAllocateMemory(m_LogicalDevice->GetVulkanDevice(), &allocateInfo, nullptr, &bufferMemory) == VK_SUCCESS);
 
-		assert(vkBindBufferMemory(m_LogicalDevice->GetVulkanDevice(), m_VertexBuffer, m_VertexBufferMemory, 0) == VK_SUCCESS);
+		assert(vkBindBufferMemory(m_LogicalDevice->GetVulkanDevice(), buffer, bufferMemory, 0) == VK_SUCCESS);
+	}
+
+	void RendererContext::CreateVertexBuffer()
+	{
+		VkBuffer stagingBuffer;
+		VkDeviceMemory stagingBufferMemory;
+		VkDeviceSize bufferSize = sizeof Vertex * m_Vertices.size();
+		CreateBuffer(
+				VK_BUFFER_USAGE_TRANSFER_SRC_BIT, 
+				bufferSize,
+	VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT, stagingBuffer, stagingBufferMemory);
 
 		void* data;
-		vkMapMemory(m_LogicalDevice->GetVulkanDevice(), m_VertexBufferMemory, 0, memoryRequirements.size, 0, &data);
+		vkMapMemory(m_LogicalDevice->GetVulkanDevice(), stagingBufferMemory, 0, bufferSize, 0, &data);
 		memcpy(data, m_Vertices.data(), sizeof(Vertex) * m_Vertices.size());
-		vkUnmapMemory(m_LogicalDevice->GetVulkanDevice(), m_VertexBufferMemory);
+		vkUnmapMemory(m_LogicalDevice->GetVulkanDevice(), stagingBufferMemory);
+
+		CreateBuffer(
+			VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
+			bufferSize,
+			VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+			m_VertexBuffer,
+			m_VertexBufferMemory
+		);
+
+		CopyBuffer(stagingBuffer, m_VertexBuffer, bufferSize);
+
+		vkDestroyBuffer(m_LogicalDevice->GetVulkanDevice(), stagingBuffer, nullptr);
+		vkFreeMemory(m_LogicalDevice->GetVulkanDevice(), stagingBufferMemory, nullptr);
+	}
+
+	void RendererContext::CopyBuffer(VkBuffer sourceBuffer, VkBuffer destinationBuffer, VkDeviceSize size)
+	{
+		VkCommandBufferAllocateInfo commandBufferAllocateInfo{};
+		commandBufferAllocateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+		commandBufferAllocateInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+		commandBufferAllocateInfo.commandBufferCount = 1;
+		commandBufferAllocateInfo.commandPool = m_TransferCommandPool;
+
+		VkCommandBuffer copyCommandBuffer;
+		assert(vkAllocateCommandBuffers(m_LogicalDevice->GetVulkanDevice(), &commandBufferAllocateInfo, &copyCommandBuffer) == VK_SUCCESS);
+
+		VkCommandBufferBeginInfo commandBufferBeginInfo{};
+		commandBufferBeginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+		commandBufferBeginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+
+		assert(vkBeginCommandBuffer(copyCommandBuffer, &commandBufferBeginInfo) == VK_SUCCESS);
+
+		VkBufferCopy bufferCopy{};
+		bufferCopy.size = size;
+		vkCmdCopyBuffer(copyCommandBuffer, sourceBuffer, destinationBuffer, 1, &bufferCopy);
+
+		assert(vkEndCommandBuffer(copyCommandBuffer) == VK_SUCCESS);
+
+		// NOTE: using fences here would allow for multiple transfer operations to happen, potentially allowing the driver to optimize
+		VkSubmitInfo submitInfo{};
+		submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+		submitInfo.commandBufferCount = 1;
+		submitInfo.pCommandBuffers = &copyCommandBuffer;
+		assert(vkQueueSubmit(m_LogicalDevice->GetTransferQueue(), 1, &submitInfo, VK_NULL_HANDLE) == VK_SUCCESS);
+
+		vkQueueWaitIdle(m_LogicalDevice->GetTransferQueue());
+
+		vkFreeCommandBuffers(m_LogicalDevice->GetVulkanDevice(), m_TransferCommandPool, 1, &copyCommandBuffer);
 	}
 }
