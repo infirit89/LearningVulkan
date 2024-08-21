@@ -142,6 +142,7 @@ namespace LearningVulkan
 
 		CreateGraphicsPipeline();
 		CreateVertexBuffer();
+		CreateIndexBuffer();
 	}
 
 	RendererContext::~RendererContext()
@@ -169,6 +170,10 @@ namespace LearningVulkan
 
 		vkDestroyBuffer(m_LogicalDevice->GetVulkanDevice(), m_VertexBuffer, nullptr);
 		vkFreeMemory(m_LogicalDevice->GetVulkanDevice(), m_VertexBufferMemory, nullptr);
+
+		vkDestroyBuffer(m_LogicalDevice->GetVulkanDevice(), m_IndexBuffer, nullptr);
+		vkFreeMemory(m_LogicalDevice->GetVulkanDevice(), m_IndexBufferMemory, nullptr);
+
 
 		delete m_LogicalDevice;
 
@@ -343,6 +348,8 @@ namespace LearningVulkan
 		VkDeviceSize deviceSizes[] = { 0 };
 		vkCmdBindVertexBuffers(commandBuffer, 0, 1, &m_VertexBuffer, deviceSizes);
 
+		vkCmdBindIndexBuffer(commandBuffer, m_IndexBuffer, 0, VK_INDEX_TYPE_UINT32);
+
 		VkViewport viewport;
 		viewport.x = 0;
 		viewport.y = 0;
@@ -357,7 +364,9 @@ namespace LearningVulkan
 		scissor.extent = m_Swapchain->GetExtent();
 		vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
 
-		vkCmdDraw(commandBuffer, m_Vertices.size(), 1, 0, 0);
+		//vkCmdDraw(commandBuffer, m_Vertices.size(), 1, 0, 0);
+
+		vkCmdDrawIndexed(commandBuffer, m_Indices.size(), 1, 0, 0, 0);
 
 		vkCmdEndRenderPass(commandBuffer);
 		vkEndCommandBuffer(commandBuffer);
@@ -713,5 +722,29 @@ namespace LearningVulkan
 		vkQueueWaitIdle(m_LogicalDevice->GetTransferQueue());
 
 		vkFreeCommandBuffers(m_LogicalDevice->GetVulkanDevice(), m_TransferCommandPool, 1, &copyCommandBuffer);
+	}
+
+	void RendererContext::CreateIndexBuffer()
+	{
+		VkBuffer stagingBuffer;
+		VkDeviceMemory stagingBufferMemory;
+		VkDeviceSize bufferSize = sizeof uint32_t * m_Indices.size();
+
+		CreateBuffer(
+			VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+			bufferSize,
+			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, stagingBuffer, stagingBufferMemory);
+
+		void* data;
+		vkMapMemory(m_LogicalDevice->GetVulkanDevice(), stagingBufferMemory, 0, bufferSize, 0, &data);
+		memcpy(data, m_Indices.data(), bufferSize);
+		vkUnmapMemory(m_LogicalDevice->GetVulkanDevice(), stagingBufferMemory);
+
+		CreateBuffer(VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT, bufferSize, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, m_IndexBuffer, m_IndexBufferMemory);
+
+		CopyBuffer(stagingBuffer, m_IndexBuffer, bufferSize);
+
+		vkDestroyBuffer(m_LogicalDevice->GetVulkanDevice(), stagingBuffer, nullptr);
+		vkFreeMemory(m_LogicalDevice->GetVulkanDevice(), stagingBufferMemory, nullptr);
 	}
 }

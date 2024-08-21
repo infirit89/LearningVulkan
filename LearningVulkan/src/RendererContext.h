@@ -63,6 +63,7 @@ namespace LearningVulkan
 		void CreateBuffer(VkBufferUsageFlags usage, VkDeviceSize size, VkMemoryPropertyFlags memoryProperties, VkBuffer& buffer, VkDeviceMemory& bufferMemory);
 		void CreateVertexBuffer();
 		void CopyBuffer(VkBuffer sourceBuffer, VkBuffer destinationBuffer, VkDeviceSize size);
+		void CreateIndexBuffer();
 		
 	private:
 		VkCommandPool m_TransferCommandPool;
@@ -80,13 +81,25 @@ namespace LearningVulkan
 		uint32_t m_FrameIndex = 0;
 
 		std::vector<PerFrameData> m_PerFrameData;
+
+		// vertex buffer:
 		VkBuffer m_VertexBuffer;
 		VkDeviceMemory m_VertexBufferMemory;
 
+		// index buffer:
+		VkBuffer m_IndexBuffer;
+		VkDeviceMemory m_IndexBufferMemory;
+
 		std::vector<Vertex> m_Vertices = {
-			{.Position = { 0.0, -0.5 }, .Color = { 1.0, 0.0, 0.0 } },
+			{.Position = { 0.5, -0.5 }, .Color = { 1.0, 0.0, 0.0 } },
 			{.Position = { 0.5, 0.5 }, .Color = { 0.0, 1.0, 0.0 } },
-			{.Position = { -0.5, 0.5 }, .Color = { 0.0, 0.0, 1.0 } }
+			{.Position = { -0.5, 0.5 }, .Color = { 0.0, 0.0, 1.0 } },
+			{.Position = { -0.5, -0.5 }, .Color = { 1.0, 1.0, 1.0 } },
+		};
+
+		std::vector<uint32_t> m_Indices = {
+			0, 1, 2,
+			2, 3, 0
 		};
 	};
 }
