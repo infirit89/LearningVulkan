@@ -21,6 +21,11 @@ namespace LearningVulkan
 		VkFence PresentFence;
 		VkSemaphore SwapchainImageAcquireSemaphore;
 		VkSemaphore QueueReadySemaphore;
+
+		// uniform buffer:
+		VkBuffer UniformBuffer;
+		VkDeviceMemory UniformBufferMemory;
+		void* UniformBufferMap;
 	};
 
 	class RendererContext 
@@ -64,6 +69,10 @@ namespace LearningVulkan
 		void CreateVertexBuffer();
 		void CopyBuffer(VkBuffer sourceBuffer, VkBuffer destinationBuffer, VkDeviceSize size);
 		void CreateIndexBuffer();
+		void CreateCameraDescriptorSetLayout();
+		void UpdateUniformBuffer(uint32_t frameIndex);
+		void CreateDescriptorPool();
+		void CreateDescriptorSets();
 		
 	private:
 		VkCommandPool m_TransferCommandPool;
@@ -89,6 +98,10 @@ namespace LearningVulkan
 		// index buffer:
 		VkBuffer m_IndexBuffer;
 		VkDeviceMemory m_IndexBufferMemory;
+
+		VkDescriptorSetLayout m_CameraDescriptorSetLayout;
+		VkDescriptorPool m_DescriptorPool;
+		std::vector<VkDescriptorSet> m_DescriptorSets;
 
 		std::vector<Vertex> m_Vertices = {
 			{.Position = { 0.5, -0.5 }, .Color = { 1.0, 0.0, 0.0 } },

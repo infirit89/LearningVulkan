@@ -15,6 +15,12 @@
 #include <map>
 #include <fstream>
 #include <filesystem>
+#include <chrono>
+
+#define GLM_FORCE_RADIANS
+//#define GLM_FORCE_LEFT_HANDED
+#include <glm/gtc/matrix_transform.hpp>
+#include <glm/glm.hpp>
 
 #include "Vertex.h"
 
@@ -140,6 +146,10 @@ namespace LearningVulkan
 		const QueueFamilyIndices& queueFamilyIndices = m_PhysicalDevice->GetQueueFamilyIndices();
 		m_TransferCommandPool = CreateCommandPool(VK_COMMAND_POOL_CREATE_TRANSIENT_BIT, queueFamilyIndices.TransferFamily.value());
 
+		CreateCameraDescriptorSetLayout();
+		CreateDescriptorPool();
+		CreateDescriptorSets();
+
 		CreateGraphicsPipeline();
 		CreateVertexBuffer();
 		CreateIndexBuffer();
@@ -156,6 +166,8 @@ namespace LearningVulkan
 			vkDestroyFence(m_LogicalDevice->GetVulkanDevice(), data.PresentFence, nullptr);
 			vkFreeCommandBuffers(m_LogicalDevice->GetVulkanDevice(), data.CommandPool, 1, &data.CommandBuffer);
 			vkDestroyCommandPool(m_LogicalDevice->GetVulkanDevice(), data.CommandPool, nullptr);
+			vkDestroyBuffer(m_LogicalDevice->GetVulkanDevice(), data.UniformBuffer, nullptr);
+			vkFreeMemory(m_LogicalDevice->GetVulkanDevice(), data.UniformBufferMemory, nullptr);
 		}
 
 		vkDestroyPipeline(m_LogicalDevice->GetVulkanDevice(), m_Pipeline, nullptr);
@@ -165,6 +177,10 @@ namespace LearningVulkan
 			delete framebuffer;
 
 		vkDestroyRenderPass(m_LogicalDevice->GetVulkanDevice(), m_RenderPass, nullptr);
+
+		vkDestroyDescriptorPool(m_LogicalDevice->GetVulkanDevice(), m_DescriptorPool, nullptr);
+		vkDestroyDescriptorSetLayout(m_LogicalDevice->GetVulkanDevice(), m_CameraDescriptorSetLayout, nullptr);
+
 
 		delete m_Swapchain;
 
@@ -365,6 +381,7 @@ namespace LearningVulkan
 		vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
 
 		//vkCmdDraw(commandBuffer, m_Vertices.size(), 1, 0, 0);
+		vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_PipelineLayout, 0, 1, &m_DescriptorSets.at(imageIndex), 0, nullptr);
 
 		vkCmdDrawIndexed(commandBuffer, m_Indices.size(), 1, 0, 0, 0);
 
@@ -397,6 +414,13 @@ namespace LearningVulkan
 			data.SwapchainImageAcquireSemaphore,
 			data.QueueReadySemaphore,
 			data.PresentFence);
+
+		CreateBuffer(
+			VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
+			sizeof CameraData,
+			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, data.UniformBuffer, data.UniformBufferMemory);
+
+		assert(vkMapMemory(m_LogicalDevice->GetVulkanDevice(), data.UniformBufferMemory, 0, sizeof CameraData, 0, &data.UniformBufferMap) == VK_SUCCESS);
 	}
 
 	void RendererContext::DrawFrame()
@@ -410,6 +434,8 @@ namespace LearningVulkan
 
 		vkResetCommandBuffer(currentFrameData.CommandBuffer, 0);
 		RecordCommandBuffer(imageIndex, currentFrameData.CommandBuffer);
+
+		UpdateUniformBuffer(m_FrameIndex);
 
 		VkSubmitInfo submitInfo{};
 		submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
@@ -509,7 +535,7 @@ namespace LearningVulkan
 			rasterizationStateCreateInfo.depthClampEnable = VK_FALSE;
 			rasterizationStateCreateInfo.cullMode = VK_CULL_MODE_BACK_BIT;
 			rasterizationStateCreateInfo.polygonMode = VK_POLYGON_MODE_FILL;
-			rasterizationStateCreateInfo.frontFace = VK_FRONT_FACE_CLOCKWISE;
+			rasterizationStateCreateInfo.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
 			rasterizationStateCreateInfo.lineWidth = 1.0f;
 			rasterizationStateCreateInfo.depthBiasClamp = VK_FALSE;
 
@@ -594,6 +620,8 @@ namespace LearningVulkan
 		{
 			VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo{};
 			pipelineLayoutCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+			pipelineLayoutCreateInfo.setLayoutCount = 1;
+			pipelineLayoutCreateInfo.pSetLayouts = &m_CameraDescriptorSetLayout;
 
 			assert(vkCreatePipelineLayout(m_LogicalDevice->GetVulkanDevice(), &pipelineLayoutCreateInfo, nullptr, &m_PipelineLayout) == VK_SUCCESS);
 
@@ -736,7 +764,7 @@ namespace LearningVulkan
 			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, stagingBuffer, stagingBufferMemory);
 
 		void* data;
-		vkMapMemory(m_LogicalDevice->GetVulkanDevice(), stagingBufferMemory, 0, bufferSize, 0, &data);
+		assert(vkMapMemory(m_LogicalDevice->GetVulkanDevice(), stagingBufferMemory, 0, bufferSize, 0, &data) == VK_SUCCESS);
 		memcpy(data, m_Indices.data(), bufferSize);
 		vkUnmapMemory(m_LogicalDevice->GetVulkanDevice(), stagingBufferMemory);
 
@@ -746,5 +774,91 @@ namespace LearningVulkan
 
 		vkDestroyBuffer(m_LogicalDevice->GetVulkanDevice(), stagingBuffer, nullptr);
 		vkFreeMemory(m_LogicalDevice->GetVulkanDevice(), stagingBufferMemory, nullptr);
+	}
+
+	void RendererContext::CreateCameraDescriptorSetLayout()
+	{
+		VkDescriptorSetLayoutBinding descriptorSetLayoutBinding{};
+		descriptorSetLayoutBinding.binding = 0;
+		descriptorSetLayoutBinding.descriptorCount = 1;
+		descriptorSetLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+		descriptorSetLayoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+
+		VkDescriptorSetLayoutCreateInfo descriptorSetLayoutCreateInfo{};
+		descriptorSetLayoutCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+		descriptorSetLayoutCreateInfo.bindingCount = 1;
+		descriptorSetLayoutCreateInfo.pBindings = &descriptorSetLayoutBinding;
+
+		assert(vkCreateDescriptorSetLayout(m_LogicalDevice->GetVulkanDevice(), &descriptorSetLayoutCreateInfo, nullptr, &m_CameraDescriptorSetLayout) == VK_SUCCESS);
+	}
+
+	void RendererContext::UpdateUniformBuffer(uint32_t frameIndex)
+	{
+		static auto startTime = std::chrono::high_resolution_clock::now();
+		auto currentTime = std::chrono::high_resolution_clock::now();
+
+		float time = std::chrono::duration<float>(startTime - currentTime).count();
+
+		CameraData cameraData{};
+		cameraData.View = glm::lookAt(glm::vec3(2.0f, 2.0f, 2.0f), { 0.0f, 0.0f, 0.0f }, { 0.0f, 0.0f, 1.0f });
+		auto swapchainExtent = m_Swapchain->GetExtent();
+		cameraData.Projection = glm::perspective(glm::radians(45.0f), swapchainExtent.width / (float)swapchainExtent.height, 0.1f, 10.0f);
+		//cameraData.Projection[1][1] *= -1;
+
+		cameraData.Model = glm::rotate(glm::mat4(1.0f), time * glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+
+		const PerFrameData& data = m_PerFrameData.at(frameIndex);
+		memcpy(data.UniformBufferMap, &cameraData, sizeof CameraData);
+	}
+
+	void RendererContext::CreateDescriptorPool()
+	{
+		VkDescriptorPoolSize descriptorPoolSize;
+		descriptorPoolSize.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+		descriptorPoolSize.descriptorCount = m_PerFrameData.size();
+
+		VkDescriptorPoolCreateInfo descriptorPoolCreateInfo{};
+		descriptorPoolCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+		descriptorPoolCreateInfo.poolSizeCount = 1;
+		descriptorPoolCreateInfo.pPoolSizes = &descriptorPoolSize;
+		descriptorPoolCreateInfo.maxSets = m_PerFrameData.size();
+
+		assert(vkCreateDescriptorPool(m_LogicalDevice->GetVulkanDevice(), &descriptorPoolCreateInfo, nullptr, &m_DescriptorPool) == VK_SUCCESS);
+
+		
+	}
+
+	void RendererContext::CreateDescriptorSets()
+	{
+		std::vector descriptorSetLayouts(m_PerFrameData.size(), m_CameraDescriptorSetLayout);
+		VkDescriptorSetAllocateInfo descriptorSetAllocateInfo{};
+		descriptorSetAllocateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+		descriptorSetAllocateInfo.descriptorPool = m_DescriptorPool;
+		descriptorSetAllocateInfo.descriptorSetCount = descriptorSetLayouts.size();
+		descriptorSetAllocateInfo.pSetLayouts = descriptorSetLayouts.data();
+
+		m_DescriptorSets.resize(m_PerFrameData.size());
+		assert(vkAllocateDescriptorSets(m_LogicalDevice->GetVulkanDevice(), &descriptorSetAllocateInfo, m_DescriptorSets.data()) == VK_SUCCESS);
+
+		for (size_t i = 0; i < m_PerFrameData.size(); i++)
+		{
+			const PerFrameData& perframeData = m_PerFrameData.at(i);
+			VkDescriptorBufferInfo bufferInfo{};
+			bufferInfo.buffer = perframeData.UniformBuffer;
+			bufferInfo.range = sizeof CameraData;
+			bufferInfo.offset = 0;
+
+			VkWriteDescriptorSet writeDescriptorSet{};
+			writeDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+			writeDescriptorSet.dstSet = m_DescriptorSets.at(i);
+			writeDescriptorSet.dstBinding = 0;
+			writeDescriptorSet.dstArrayElement = 0;
+
+			writeDescriptorSet.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+			writeDescriptorSet.descriptorCount = 1;
+			writeDescriptorSet.pBufferInfo = &bufferInfo;
+
+			vkUpdateDescriptorSets(m_LogicalDevice->GetVulkanDevice(), 1, &writeDescriptorSet, 0, nullptr);
+		}
 	}
 }
