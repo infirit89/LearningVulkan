@@ -21,6 +21,7 @@
 //#define GLM_FORCE_LEFT_HANDED
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/glm.hpp>
+#include <glm/gtc/quaternion.hpp>
 
 #include "Vertex.h"
 
@@ -792,6 +793,15 @@ namespace LearningVulkan
 		assert(vkCreateDescriptorSetLayout(m_LogicalDevice->GetVulkanDevice(), &descriptorSetLayoutCreateInfo, nullptr, &m_CameraDescriptorSetLayout) == VK_SUCCESS);
 	}
 
+	static glm::vec3 position = { 0.0f, 0.0f, 4.0f };
+	static glm::vec3 front = { 0.0f, 0.0f, 1.0f };
+	static glm::vec3 right = { 1.0f, 0.0f, 0.0f };
+	static glm::vec3 up = { 0.0f, 1.0f, 0.0f };
+	static glm::vec3 direction = { 0.0f, 0.0f, 0.0f };
+	static double lastMouseX, lastMouseY;
+	static  bool first = true;
+	static double pitch = 0.0, yaw = -90.0;
+
 	void RendererContext::UpdateUniformBuffer(uint32_t frameIndex)
 	{
 		static auto startTime = std::chrono::high_resolution_clock::now();
@@ -799,8 +809,60 @@ namespace LearningVulkan
 
 		float time = std::chrono::duration<float>(startTime - currentTime).count();
 
-		CameraData cameraData{};
-		cameraData.View = glm::lookAt(glm::vec3(2.0f, 2.0f, 2.0f), { 0.0f, 0.0f, 0.0f }, { 0.0f, 0.0f, 1.0f });
+		GLFWwindow* window = Application::Get()->GetWindow()->GetNativeWindow();
+
+		if (glfwGetKey(window, GLFW_KEY_W))
+			position += front * Application::Get()->GetDeltaTime() * 2.0f;
+		else if (glfwGetKey(window, GLFW_KEY_S))
+			position -= front * Application::Get()->GetDeltaTime() * 2.0f;
+
+		if (glfwGetKey(window, GLFW_KEY_A))
+			position -= right * Application::Get()->GetDeltaTime() * 2.0f;
+		else if(glfwGetKey(window, GLFW_KEY_D))
+			position += right * Application::Get()->GetDeltaTime() * 2.0f;
+
+		if(glfwGetKey(window, GLFW_KEY_Q))
+			position -= up * Application::Get()->GetDeltaTime() * 2.0f;
+		else if (glfwGetKey(window, GLFW_KEY_E))
+			position += up * Application::Get()->GetDeltaTime() * 2.0f;
+
+		
+		double mouseX, mouseY;
+		glfwGetCursorPos(window, &mouseX, &mouseY);
+
+		if(first)
+		{
+			lastMouseX = mouseX;
+			lastMouseY = mouseY;
+			first = false;
+		}
+
+		double xoffset = (mouseX - lastMouseX) * 0.1f;
+		double yoffset = (mouseY - lastMouseY) * 0.1f;
+		lastMouseX = mouseX;
+		lastMouseY = mouseY;
+
+		pitch += yoffset;
+		yaw += xoffset;
+
+		direction.x = glm::cos(glm::radians(yaw)) * glm::cos(glm::radians(pitch));
+		direction.y = glm::sin(glm::radians(pitch));
+		direction.z = glm::sin(glm::radians(yaw)) * glm::cos(glm::radians(pitch));
+		direction = glm::normalize(direction);
+
+		front = direction;
+		if (glfwGetKey(window, GLFW_KEY_R))
+		{
+			position = { 0.0f, 0.0f, 4.0f };
+			direction = { 0.0f, 0.0f, -1.0f };
+		}
+
+		right = glm::cross(front, up);
+		up = glm::cross(right, front);
+
+		CameraData cameraData;
+
+		cameraData.View = lookAt(position, position + direction, up);
 		auto swapchainExtent = m_Swapchain->GetExtent();
 		cameraData.Projection = glm::perspective(glm::radians(45.0f), swapchainExtent.width / (float)swapchainExtent.height, 0.1f, 10.0f);
 		//cameraData.Projection[1][1] *= -1;
