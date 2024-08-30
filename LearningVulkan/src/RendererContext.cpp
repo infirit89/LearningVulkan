@@ -194,6 +194,8 @@ namespace LearningVulkan
 		vkDestroyBuffer(m_LogicalDevice->GetVulkanDevice(), m_IndexBuffer, nullptr);
 		vkFreeMemory(m_LogicalDevice->GetVulkanDevice(), m_IndexBufferMemory, nullptr);
 
+		vkDestroySampler(m_LogicalDevice->GetVulkanDevice(), m_TestImageSampler, nullptr);
+		vkDestroyImageView(m_LogicalDevice->GetVulkanDevice(), m_TestImageView, nullptr);
 		vkDestroyImage(m_LogicalDevice->GetVulkanDevice(), m_TestImage, nullptr);
 		vkFreeMemory(m_LogicalDevice->GetVulkanDevice(), m_TestImageMemory, nullptr);
 
@@ -958,6 +960,9 @@ namespace LearningVulkan
 		CopyBufferToImage(stagingBuffer, m_TestImage, width, height);
 		TransitionImageLayout(m_TestImage, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
 
+		CreateImageView();
+		CreateImageSampler();
+
 		vkDestroyBuffer(m_LogicalDevice->GetVulkanDevice(), stagingBuffer, nullptr);
 		vkFreeMemory(m_LogicalDevice->GetVulkanDevice(), stagingBufferMemory, nullptr);
 	}
@@ -1122,5 +1127,39 @@ namespace LearningVulkan
 	void RendererContext::EndCommandBuffer(VkCommandBuffer commandBuffer)
 	{
 		assert(vkEndCommandBuffer(commandBuffer) == VK_SUCCESS);
+	}
+
+	void RendererContext::CreateImageView()
+	{
+		VkImageViewCreateInfo imageViewCreateInfo{};
+		imageViewCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+		imageViewCreateInfo.image = m_TestImage;
+		imageViewCreateInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+		imageViewCreateInfo.subresourceRange.baseArrayLayer = 0;
+		imageViewCreateInfo.subresourceRange.baseMipLevel = 0;
+		imageViewCreateInfo.subresourceRange.layerCount = 1;
+		imageViewCreateInfo.subresourceRange.levelCount = 1;
+		imageViewCreateInfo.format = VK_FORMAT_R8G8B8A8_SRGB;
+		imageViewCreateInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+
+		assert(vkCreateImageView(m_LogicalDevice->GetVulkanDevice(), &imageViewCreateInfo, nullptr, &m_TestImageView) == VK_SUCCESS);
+
+	}
+
+	void RendererContext::CreateImageSampler()
+	{
+		VkSamplerCreateInfo samplerCreateInfo{};
+		samplerCreateInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+		samplerCreateInfo.magFilter = VK_FILTER_LINEAR;
+		samplerCreateInfo.minFilter = VK_FILTER_LINEAR;
+		samplerCreateInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
+		samplerCreateInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+		samplerCreateInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+		samplerCreateInfo.anisotropyEnable = VK_TRUE;
+		VkPhysicalDeviceProperties properties;
+		vkGetPhysicalDeviceProperties(m_PhysicalDevice->GetPhysicalDevice(), &properties);
+		samplerCreateInfo.maxAnisotropy = properties.limits.maxSamplerAnisotropy;
+
+		assert(vkCreateSampler(m_LogicalDevice->GetVulkanDevice(), &samplerCreateInfo, nullptr, &m_TestImageSampler) == VK_SUCCESS);
 	}
 }

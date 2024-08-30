@@ -49,6 +49,11 @@ namespace LearningVulkan
 		deviceCreateInfo.enabledExtensionCount = VulkanUtils::DeviceExtensionsSize;
 		deviceCreateInfo.ppEnabledExtensionNames = VulkanUtils::DeviceExtensions.data();
 
+		VkPhysicalDeviceFeatures features{};
+		features.samplerAnisotropy = VK_TRUE;
+
+		deviceCreateInfo.pEnabledFeatures = &features;
+
 		VkDevice device;
 		assert(vkCreateDevice(m_PhysicalDevice, &deviceCreateInfo, nullptr, &device) == VK_SUCCESS);	
 		return new LogicalDevice(device, this);
@@ -99,6 +104,11 @@ namespace LearningVulkan
 			score = 0;
 
 		if (!CheckDeviceExtensionSupport(physicalDevice))
+			score = 0;
+
+		VkPhysicalDeviceFeatures deviceFeatures;
+		vkGetPhysicalDeviceFeatures(physicalDevice, &deviceFeatures);
+		if (deviceFeatures.samplerAnisotropy == VK_FALSE)
 			score = 0;
 
 		std::cout << '\t' << "Name: " << deviceProperties.deviceName << "; Score: " << score << '\n';

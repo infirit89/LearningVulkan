@@ -79,6 +79,8 @@ namespace LearningVulkan
 		void CopyBufferToImage(VkBuffer source, VkImage destination, uint32_t width, uint32_t height);
 		void BeginCommandBuffer(VkCommandBuffer commandBuffer, VkCommandBufferUsageFlags usageFlags);
 		void EndCommandBuffer(VkCommandBuffer commandBuffer);
+		void CreateImageView();
+		void CreateImageSampler();
 		
 	private:
 		VkCommandPool m_TransientTransferCommandPool;
@@ -124,5 +126,7 @@ namespace LearningVulkan
 
 		VkImage m_TestImage;
 		VkDeviceMemory m_TestImageMemory;
+		VkImageView m_TestImageView;
+		VkSampler m_TestImageSampler;
 	};
 }
