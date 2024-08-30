@@ -113,10 +113,10 @@ namespace LearningVulkan
 		std::vector<VkDescriptorSet> m_DescriptorSets;
 
 		std::vector<Vertex> m_Vertices = {
-			{.Position = { 0.5, -0.5 }, .Color = { 1.0, 0.0, 0.0 } },
-			{.Position = { 0.5, 0.5 }, .Color = { 0.0, 1.0, 0.0 } },
-			{.Position = { -0.5, 0.5 }, .Color = { 0.0, 0.0, 1.0 } },
-			{.Position = { -0.5, -0.5 }, .Color = { 1.0, 1.0, 1.0 } },
+			{ .Position = { 0.5, -0.5 }, .Color = { 1.0, 1.0, 1.0 }, .TextureCoordinates = {0.0f, 1.0f}, },
+			{ .Position = { 0.5, 0.5 }, .Color = { 1.0, 1.0, 1.0 }, .TextureCoordinates = {0.0f, 0.0f}, },
+			{ .Position = { -0.5, 0.5 }, .Color = { 1.0, 1.0, 1.0 }, .TextureCoordinates = {1.0f, 0.0f}, },
+			{ .Position = { -0.5, -0.5 }, .Color = { 1.0, 1.0, 1.0 }, .TextureCoordinates = {1.0f, 1.0f}, },
 		};
 
 		std::vector<uint32_t> m_Indices = {

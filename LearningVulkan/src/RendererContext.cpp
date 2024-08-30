@@ -147,6 +147,7 @@ namespace LearningVulkan
 		m_TransientTransferCommandPool = CreateCommandPool(VK_COMMAND_POOL_CREATE_TRANSIENT_BIT, queueFamilyIndices.TransferFamily.value());
 		m_TransientGraphicsCommandPool = CreateCommandPool(VK_COMMAND_POOL_CREATE_TRANSIENT_BIT, queueFamilyIndices.GraphicsFamily.value());
 
+		CreateTexture();
 		CreateCameraDescriptorSetLayout();
 		CreateDescriptorPool();
 		CreateDescriptorSets();
@@ -155,7 +156,6 @@ namespace LearningVulkan
 		CreateVertexBuffer();
 		CreateIndexBuffer();
 
-		CreateTexture();
 	}
 
 	RendererContext::~RendererContext()
@@ -782,10 +782,21 @@ namespace LearningVulkan
 		descriptorSetLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
 		descriptorSetLayoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
 
+		VkDescriptorSetLayoutBinding textureDescriptorSetLayoutBinding{};
+		textureDescriptorSetLayoutBinding.binding = 1;
+		textureDescriptorSetLayoutBinding.descriptorCount = 1;
+		textureDescriptorSetLayoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+		textureDescriptorSetLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+
+		std::array descriptorSetLayoutBindings = {
+			descriptorSetLayoutBinding,
+			textureDescriptorSetLayoutBinding,
+		};
+
 		VkDescriptorSetLayoutCreateInfo descriptorSetLayoutCreateInfo{};
 		descriptorSetLayoutCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-		descriptorSetLayoutCreateInfo.bindingCount = 1;
-		descriptorSetLayoutCreateInfo.pBindings = &descriptorSetLayoutBinding;
+		descriptorSetLayoutCreateInfo.bindingCount = descriptorSetLayoutBindings.size();
+		descriptorSetLayoutCreateInfo.pBindings = descriptorSetLayoutBindings.data();
 
 		assert(vkCreateDescriptorSetLayout(m_LogicalDevice->GetVulkanDevice(), &descriptorSetLayoutCreateInfo, nullptr, &m_CameraDescriptorSetLayout) == VK_SUCCESS);
 	}
@@ -885,10 +896,19 @@ namespace LearningVulkan
 		descriptorPoolSize.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
 		descriptorPoolSize.descriptorCount = m_PerFrameData.size();
 
+		VkDescriptorPoolSize textureDescriptorPoolSize;
+		textureDescriptorPoolSize.type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+		textureDescriptorPoolSize.descriptorCount = m_PerFrameData.size();
+
+		std::array descriptorPoolSizes = {
+			descriptorPoolSize,
+			textureDescriptorPoolSize,
+		};
+
 		VkDescriptorPoolCreateInfo descriptorPoolCreateInfo{};
 		descriptorPoolCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
-		descriptorPoolCreateInfo.poolSizeCount = 1;
-		descriptorPoolCreateInfo.pPoolSizes = &descriptorPoolSize;
+		descriptorPoolCreateInfo.poolSizeCount = descriptorPoolSizes.size();
+		descriptorPoolCreateInfo.pPoolSizes = descriptorPoolSizes.data();
 		descriptorPoolCreateInfo.maxSets = m_PerFrameData.size();
 
 		assert(vkCreateDescriptorPool(m_LogicalDevice->GetVulkanDevice(), &descriptorPoolCreateInfo, nullptr, &m_DescriptorPool) == VK_SUCCESS);
@@ -916,6 +936,13 @@ namespace LearningVulkan
 			bufferInfo.range = sizeof CameraData;
 			bufferInfo.offset = 0;
 
+			VkDescriptorImageInfo imageInfo{};
+			imageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+			imageInfo.imageView = m_TestImageView;
+			imageInfo.sampler = m_TestImageSampler;
+
+			std::array<VkWriteDescriptorSet, 2> writeDescriptorSets{};
+
 			VkWriteDescriptorSet writeDescriptorSet{};
 			writeDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
 			writeDescriptorSet.dstSet = m_DescriptorSets.at(i);
@@ -925,19 +952,31 @@ namespace LearningVulkan
 			writeDescriptorSet.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
 			writeDescriptorSet.descriptorCount = 1;
 			writeDescriptorSet.pBufferInfo = &bufferInfo;
+			writeDescriptorSets[0] = writeDescriptorSet;
 
-			vkUpdateDescriptorSets(m_LogicalDevice->GetVulkanDevice(), 1, &writeDescriptorSet, 0, nullptr);
+			VkWriteDescriptorSet textureWriteDescriptorSet{};
+			textureWriteDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+			textureWriteDescriptorSet.dstSet = m_DescriptorSets.at(i);
+			textureWriteDescriptorSet.dstBinding = 1;
+			textureWriteDescriptorSet.dstArrayElement = 0;
+			textureWriteDescriptorSet.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+			textureWriteDescriptorSet.descriptorCount = 1;
+			textureWriteDescriptorSet.pImageInfo = &imageInfo;
+			writeDescriptorSets[1] = textureWriteDescriptorSet;
+
+
+			vkUpdateDescriptorSets(m_LogicalDevice->GetVulkanDevice(), writeDescriptorSets.size(), writeDescriptorSets.data(), 0, nullptr);
 		}
 	}
 
 	void RendererContext::CreateTexture()
 	{
 		int width, height, channels;
-		stbi_uc* imageData = stbi_load("assets/elbowcough.png", &width, &height, &channels, STBI_rgb_alpha);
+		stbi_uc* imageData = stbi_load("assets/test.png", &width, &height, &channels, STBI_rgb_alpha);
 
 		assert(imageData != nullptr);
 
-		VkDeviceSize imageSize = width * height * channels;
+		VkDeviceSize imageSize = width * height * 4;
 
 		VkBuffer stagingBuffer;
 		VkDeviceMemory stagingBufferMemory;
@@ -997,7 +1036,6 @@ namespace LearningVulkan
 		imageCreateInfo.samples = VK_SAMPLE_COUNT_1_BIT;
 
 		assert(vkCreateImage(m_LogicalDevice->GetVulkanDevice(), &imageCreateInfo, nullptr, &image) == VK_SUCCESS);
-
 
 		VkMemoryRequirements imageMemoryRequirements;
 		vkGetImageMemoryRequirements(m_LogicalDevice->GetVulkanDevice(), image, &imageMemoryRequirements);
@@ -1143,15 +1181,14 @@ namespace LearningVulkan
 		imageViewCreateInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
 
 		assert(vkCreateImageView(m_LogicalDevice->GetVulkanDevice(), &imageViewCreateInfo, nullptr, &m_TestImageView) == VK_SUCCESS);
-
 	}
 
 	void RendererContext::CreateImageSampler()
 	{
 		VkSamplerCreateInfo samplerCreateInfo{};
 		samplerCreateInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
-		samplerCreateInfo.magFilter = VK_FILTER_LINEAR;
-		samplerCreateInfo.minFilter = VK_FILTER_LINEAR;
+		samplerCreateInfo.magFilter = VK_FILTER_NEAREST;
+		samplerCreateInfo.minFilter = VK_FILTER_NEAREST;
 		samplerCreateInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
 		samplerCreateInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
 		samplerCreateInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
