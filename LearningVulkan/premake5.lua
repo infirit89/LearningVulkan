@@ -15,6 +15,9 @@ project "LearningVulkan"
     {
         "src/**.h",
         "src/**.cpp",
+
+        "%{wks.location}/Vendor/stb/**.h",
+        "%{wks.location}/Vendor/stb/**.cpp",
     }
 
     includedirs
@@ -23,7 +26,8 @@ project "LearningVulkan"
         "%{wks.location}/Vendor/GLFW/include",
         "%{wks.location}/Vendor/glm",
         "%{VULKAN_SDK}/Include",
-        "%{wks.location}/Vendor/Optick/src/"
+        "%{wks.location}/Vendor/Optick/src/",
+        "%{wks.location}/Vendor/stb",
     }
 
     links

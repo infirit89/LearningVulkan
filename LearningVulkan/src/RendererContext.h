@@ -73,9 +73,16 @@ namespace LearningVulkan
 		void UpdateUniformBuffer(uint32_t frameIndex);
 		void CreateDescriptorPool();
 		void CreateDescriptorSets();
+		void CreateTexture();
+		void CreateImage(uint32_t width, uint32_t height, VkFormat format, VkImageTiling imageTiling, VkImageUsageFlags imageUsage, VkMemoryPropertyFlags memoryProperties, VkImage& image, VkDeviceMemory& imageMemory);
+		void TransitionImageLayout(VkImage image, VkImageLayout oldLayout, VkImageLayout newLayout);
+		void CopyBufferToImage(VkBuffer source, VkImage destination, uint32_t width, uint32_t height);
+		void BeginCommandBuffer(VkCommandBuffer commandBuffer, VkCommandBufferUsageFlags usageFlags);
+		void EndCommandBuffer(VkCommandBuffer commandBuffer);
 		
 	private:
-		VkCommandPool m_TransferCommandPool;
+		VkCommandPool m_TransientTransferCommandPool;
+		VkCommandPool m_TransientGraphicsCommandPool;
 		static VkInstance m_Instance;
 		VkDebugUtilsMessengerEXT m_DebugMessenger;
 		static VkSurfaceKHR m_Surface;
@@ -114,5 +121,8 @@ namespace LearningVulkan
 			0, 1, 2,
 			2, 3, 0
 		};
+
+		VkImage m_TestImage;
+		VkDeviceMemory m_TestImageMemory;
 	};
 }

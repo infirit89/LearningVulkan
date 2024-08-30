@@ -23,7 +23,7 @@ namespace LearningVulkan
 		const std::vector<VkImageView>& GetImageViews() const { return m_ImageViews; }
 		const VkSurfaceFormatKHR& GetSurfaceFormat() const { return m_SurfaceFormat; }
 		VkSwapchainKHR GetVulkanSwapchain() const { return m_Swapchain; }
-		void Recreate(uint32_t width, uint32_t height);
+		void Resize(uint32_t width, uint32_t height);
 		void Present(VkSemaphore semaphore, uint32_t imageIndex);
 		void AcquireNextImage(VkSemaphore imageAcquireSemaphore, uint32_t& imageIndex);
 

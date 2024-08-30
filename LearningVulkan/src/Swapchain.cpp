@@ -32,7 +32,7 @@ namespace LearningVulkan
 		Destroy(m_Swapchain);
 	}
 
-	void Swapchain::Recreate(uint32_t width, uint32_t height)
+	void Swapchain::Resize(uint32_t width, uint32_t height)
 	{
 		m_Width = width;
 		m_Height = height;
