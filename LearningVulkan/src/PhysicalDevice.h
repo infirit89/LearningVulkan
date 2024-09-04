@@ -27,7 +27,7 @@ namespace LearningVulkan
 	{
 	public:
 		PhysicalDevice() = delete;
-		~PhysicalDevice();
+		~PhysicalDevice() = default;
 
 		static PhysicalDevice* GetSuitablePhysicalDevice();
 

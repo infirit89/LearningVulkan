@@ -161,10 +161,6 @@ namespace LearningVulkan
 		return swapChainSupport;
 	}
 
-	PhysicalDevice::~PhysicalDevice()
-	{
-	}
-
 	PhysicalDevice* PhysicalDevice::GetSuitablePhysicalDevice()
 	{
 		uint32_t physicalDeviceCount = 0;

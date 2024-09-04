@@ -9,5 +9,5 @@ layout(binding = 1) uniform sampler2D u_Sampler;
 
 void main() 
 {
-    o_Color = texture(u_Sampler, i_TextureCoordinates);
+    o_Color = texture(u_Sampler, i_TextureCoordinates) * vec4(0.0, 1.0, 0.0, 1.0);
 }

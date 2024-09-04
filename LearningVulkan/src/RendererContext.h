@@ -42,7 +42,7 @@ namespace LearningVulkan
 		Swapchain* GetSwapchain() const { return m_Swapchain; }
 		VkRenderPass GetRenderPass() const { return m_RenderPass; }
 
-		void Resize(uint32_t width, uint32_t height) const;
+		void Resize(uint32_t width, uint32_t height);
 		const std::vector<Framebuffer*>& GetFramebuffers() const { return m_Framebuffers; }
 		const PerFrameData& GetPerFrameData(size_t index) const { return m_PerFrameData.at(index); }
 		size_t GetPerFrameDataSize() const { return m_PerFrameData.size(); }
@@ -79,8 +79,10 @@ namespace LearningVulkan
 		void CopyBufferToImage(VkBuffer source, VkImage destination, uint32_t width, uint32_t height);
 		void BeginCommandBuffer(VkCommandBuffer commandBuffer, VkCommandBufferUsageFlags usageFlags);
 		void EndCommandBuffer(VkCommandBuffer commandBuffer);
-		void CreateImageView();
+		void CreateImageView(const VkImage& image, VkFormat image_format, VkImageAspectFlags image_aspect_flags, VkImageView& image_view);
 		void CreateImageSampler();
+		void CreateDepthResources();
+		void DestroyDepthResources();
 		
 	private:
 		VkCommandPool m_TransientTransferCommandPool;
@@ -113,20 +115,30 @@ namespace LearningVulkan
 		std::vector<VkDescriptorSet> m_DescriptorSets;
 
 		std::vector<Vertex> m_Vertices = {
-			{ .Position = { 0.5, -0.5 }, .Color = { 1.0, 1.0, 1.0 }, .TextureCoordinates = {0.0f, 1.0f}, },
-			{ .Position = { 0.5, 0.5 }, .Color = { 1.0, 1.0, 1.0 }, .TextureCoordinates = {0.0f, 0.0f}, },
-			{ .Position = { -0.5, 0.5 }, .Color = { 1.0, 1.0, 1.0 }, .TextureCoordinates = {1.0f, 0.0f}, },
-			{ .Position = { -0.5, -0.5 }, .Color = { 1.0, 1.0, 1.0 }, .TextureCoordinates = {1.0f, 1.0f}, },
+			{ .Position = { 0.5f, -0.5f, 0.5f }, .Color = { 1.0, 1.0, 1.0 }, .TextureCoordinates = {0.0f, 1.0f}, },
+			{ .Position = { 0.5f, 0.5f, 0.5f }, .Color = { 1.0, 1.0, 1.0 }, .TextureCoordinates = {0.0f, 0.0f}, },
+			{ .Position = { -0.5f, 0.5f, 0.0f }, .Color = { 1.0, 1.0, 1.0 }, .TextureCoordinates = {1.0f, 0.0f}, },
+			{ .Position = { -0.5f, -0.5f, 0.0f }, .Color = { 1.0, 1.0, 1.0 }, .TextureCoordinates = {1.0f, 1.0f}, },
+
+			//{.Position = { 0.5f, -0.5f, -0.5f }, .Color = { 1.0, 1.0, 1.0 }, .TextureCoordinates = {0.0f, 1.0f}, },
+			//{.Position = { 0.5f, 0.5f, -0.5f }, .Color = { 1.0, 1.0, 1.0 }, .TextureCoordinates = {0.0f, 0.0f}, },
+			//{.Position = { -0.5f, 0.5f, -0.5f }, .Color = { 1.0, 1.0, 1.0 }, .TextureCoordinates = {1.0f, 0.0f}, },
+			//{.Position = { -0.5f, -0.5f, -0.5f }, .Color = { 1.0, 1.0, 1.0 }, .TextureCoordinates = {1.0f, 1.0f}, },
 		};
 
 		std::vector<uint32_t> m_Indices = {
-			0, 1, 2,
-			2, 3, 0
+			0, 1, 2, 2, 3, 0,
+			//4, 5, 6, 6, 7, 4,
 		};
 
 		VkImage m_TestImage;
 		VkDeviceMemory m_TestImageMemory;
 		VkImageView m_TestImageView;
 		VkSampler m_TestImageSampler;
+
+		VkImage m_DepthImage;
+		VkImageView m_DepthImageView;
+		VkDeviceMemory m_DepthImageMemory;
+		VkFormat m_DepthFormat = VK_FORMAT_UNDEFINED;
 	};
 }

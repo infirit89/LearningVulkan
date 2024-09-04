@@ -5,8 +5,8 @@
 
 namespace LearningVulkan 
 {
-	LearningVulkan::Framebuffer::Framebuffer(VkRenderPass renderPass, VkImageView attachment, uint32_t width, uint32_t height)
-		: m_RenderPass(renderPass), m_Attachment(attachment), m_Width(width), m_Height(height)
+	LearningVulkan::Framebuffer::Framebuffer(VkRenderPass renderPass, const std::vector<VkImageView>& attachment, uint32_t width, uint32_t height)
+		: m_Attachments(attachment), m_RenderPass(renderPass), m_Width(width), m_Height(height)
 	{
 		Create();
 	}
@@ -16,9 +16,9 @@ namespace LearningVulkan
 		Destroy();
 	}
 
-	void Framebuffer::Resize(VkImageView attachment, uint32_t width, uint32_t height)
+	void Framebuffer::Resize(const std::vector<VkImageView>& attachment, uint32_t width, uint32_t height)
 	{
-		m_Attachment = attachment;
+		m_Attachments = attachment;
 		m_Width = width; m_Height = height;
 		Destroy();
 		Create();
@@ -28,8 +28,8 @@ namespace LearningVulkan
 	{
 		VkFramebufferCreateInfo framebufferCreateInfo{};
 		framebufferCreateInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
-		framebufferCreateInfo.attachmentCount = 1;
-		framebufferCreateInfo.pAttachments = &m_Attachment;
+		framebufferCreateInfo.attachmentCount = m_Attachments.size();
+		framebufferCreateInfo.pAttachments = m_Attachments.data();
 		framebufferCreateInfo.renderPass = m_RenderPass;
 		framebufferCreateInfo.width = m_Width;
 		framebufferCreateInfo.height = m_Height;

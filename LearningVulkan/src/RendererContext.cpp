@@ -17,7 +17,7 @@
 #include <filesystem>
 #include <chrono>
 
-//#define GLM_FORCE_LEFT_HANDED
+#define GLM_FORCE_DEPTH_ZERO_TO_ONE
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/glm.hpp>
 #include <stb_image.h>
@@ -116,8 +116,16 @@ namespace LearningVulkan
 	VkSurfaceKHR RendererContext::m_Surface;
 	LogicalDevice* RendererContext::m_LogicalDevice;
 
+	static float fov = 45.0f;
+
+	static void MouseScrollCallback(GLFWwindow* window, double x, double y)
+	{
+		fov -= y;
+	}
+
 	RendererContext::RendererContext(std::string_view applicationName)
 	{
+
 		CreateVulkanInstance(applicationName);
 		SetupDebugMessenger();
 		CreateSurface();
@@ -127,14 +135,26 @@ namespace LearningVulkan
 		m_LogicalDevice = m_PhysicalDevice->CreateLogicalDevice();
 
 		const Window* window = Application::Get()->GetWindow();
+
+		glfwSetScrollCallback(window->GetNativeWindow(), MouseScrollCallback);
+
 		m_Swapchain = new Swapchain(m_LogicalDevice, window->GetWidth(), window->GetHeight(), PresentMode::Mailbox);
+		CreateDepthResources();
+
 		CreateRenderPass();
 
 		m_Framebuffers.reserve(m_Swapchain->GetImageViews().size());
 		for (size_t i = 0; i < m_Swapchain->GetImageViews().size(); i++)
 		{
 			const VkExtent2D& extent = m_Swapchain->GetExtent();
-			Framebuffer* framebuffer = new Framebuffer(m_RenderPass, m_Swapchain->GetImageViews().at(i), 
+
+			std::vector attachments
+			{
+				m_Swapchain->GetImageViews().at(i),
+				m_DepthImageView,
+			};
+
+			Framebuffer* framebuffer = new Framebuffer(m_RenderPass, attachments,
 				extent.width, extent.height);
 			m_Framebuffers.push_back(framebuffer);
 		}
@@ -185,7 +205,7 @@ namespace LearningVulkan
 		vkDestroyDescriptorPool(m_LogicalDevice->GetVulkanDevice(), m_DescriptorPool, nullptr);
 		vkDestroyDescriptorSetLayout(m_LogicalDevice->GetVulkanDevice(), m_CameraDescriptorSetLayout, nullptr);
 
-
+		DestroyDepthResources();
 		delete m_Swapchain;
 
 		vkDestroyBuffer(m_LogicalDevice->GetVulkanDevice(), m_VertexBuffer, nullptr);
@@ -209,14 +229,24 @@ namespace LearningVulkan
 		vkDestroyInstance(m_Instance, nullptr);
 	}
 
-	void RendererContext::Resize(uint32_t width, uint32_t height) const
+	void RendererContext::Resize(uint32_t width, uint32_t height)
 	{
 		m_LogicalDevice->WaitIdle();
 
 		m_Swapchain->Resize(width, height);
+		DestroyDepthResources();
+		CreateDepthResources();
+
 		uint32_t index = 0;
-		for (const auto& framebuffer : m_Framebuffers) 
-			framebuffer->Resize(m_Swapchain->GetImageViews().at(index++), width, height);
+		for (const auto& framebuffer : m_Framebuffers)
+		{
+			std::vector attachments
+			{
+				m_Swapchain->GetImageViews().at(index++),
+				m_DepthImageView,
+			};
+			framebuffer->Resize(attachments, width, height);
+		}
 	}
 
 	void RendererContext::CreateVulkanInstance(std::string_view applicationName)
@@ -295,28 +325,48 @@ namespace LearningVulkan
 		colorAttachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
 		colorAttachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
 
+		VkAttachmentDescription depthAttachment{};
+		depthAttachment.format = m_DepthFormat;
+		depthAttachment.samples = VK_SAMPLE_COUNT_1_BIT;
+		depthAttachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+		depthAttachment.finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+		depthAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+		depthAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+		depthAttachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+		depthAttachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+
 		VkAttachmentReference attachmentRef;
 		attachmentRef.attachment = 0;
 		attachmentRef.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 
+		VkAttachmentReference depthAttachmentRef;
+		depthAttachmentRef.attachment = 1;
+		depthAttachmentRef.layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+
 		VkSubpassDescription subpassDescription{};
 		subpassDescription.colorAttachmentCount = 1;
+		subpassDescription.pDepthStencilAttachment = &depthAttachmentRef;
 		subpassDescription.pColorAttachments = &attachmentRef;
+
+		std::array attachments
+		{
+			colorAttachment, depthAttachment
+		};
 
 		VkRenderPassCreateInfo renderPassCreateInfo{};
 		renderPassCreateInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
-		renderPassCreateInfo.attachmentCount = 1;
-		renderPassCreateInfo.pAttachments = &colorAttachment;
+		renderPassCreateInfo.attachmentCount = attachments.size();
+		renderPassCreateInfo.pAttachments = attachments.data();
 		renderPassCreateInfo.subpassCount = 1;
 		renderPassCreateInfo.pSubpasses = &subpassDescription;
 
 		VkSubpassDependency subpassDependency{};
 		subpassDependency.srcSubpass = VK_SUBPASS_EXTERNAL;
 		subpassDependency.dstSubpass = 0;
-		subpassDependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+		subpassDependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
 		subpassDependency.srcAccessMask = 0;
-		subpassDependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-		subpassDependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+		subpassDependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
+		subpassDependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
 
 		renderPassCreateInfo.dependencyCount = 1;
 		renderPassCreateInfo.pDependencies = &subpassDependency;
@@ -363,10 +413,11 @@ namespace LearningVulkan
 		renderPassInfo.renderArea.extent = m_Swapchain->GetExtent();
 		renderPassInfo.renderArea.offset = { 0, 0 };
 
-		VkClearValue clearColor{};
-		clearColor.color = { 0.1f, 0.1f, 0.1f, 1.0f };
-		renderPassInfo.clearValueCount = 1;
-		renderPassInfo.pClearValues = &clearColor;
+		std::array<VkClearValue, 2> clearColor{};
+		clearColor[0].color = {0.1f, 0.1f, 0.1f, 1.0f};
+		clearColor[1].depthStencil= { 1.0f, 0, };
+		renderPassInfo.clearValueCount = clearColor.size();
+		renderPassInfo.pClearValues = clearColor.data();
 
 		vkCmdBeginRenderPass(commandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
 		vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_Pipeline);
@@ -476,7 +527,7 @@ namespace LearningVulkan
 		VkShaderModule vertexShaderModule = CreateShader(vertexShaderData);
 		VkShaderModule fragmentShaderModule = CreateShader(fragmentShaderData);
 
-		{
+#pragma region Shader Stages
 			VkPipelineShaderStageCreateInfo vertexShaderStageCreateInfo{};
 			vertexShaderStageCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
 			vertexShaderStageCreateInfo.module = vertexShaderModule;
@@ -497,10 +548,10 @@ namespace LearningVulkan
 
 			graphicsPipelineCreateInfo.pStages = shaderStages.data();
 			graphicsPipelineCreateInfo.stageCount = shaderStages.size();
-		}
+#pragma endregion
 
 
-		{
+#pragma region Vertex Input State
 			VkPipelineVertexInputStateCreateInfo vertexInputCreateInfo{};
 			vertexInputCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
 
@@ -513,17 +564,17 @@ namespace LearningVulkan
 			vertexInputCreateInfo.pVertexAttributeDescriptions = vertexAttributeDescription.data();
 
 			graphicsPipelineCreateInfo.pVertexInputState = &vertexInputCreateInfo;
-		}
+#pragma endregion
 
-		{
+#pragma region Input Assembly State
 			VkPipelineInputAssemblyStateCreateInfo inputAssemblyStateCreateInfo{};
 			inputAssemblyStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
 			inputAssemblyStateCreateInfo.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
 
 			graphicsPipelineCreateInfo.pInputAssemblyState = &inputAssemblyStateCreateInfo;
-		}
+#pragma endregion
 
-		{
+#pragma region Dynamic States
 			std::array dynamicStates =
 			{
 				VK_DYNAMIC_STATE_VIEWPORT,
@@ -536,23 +587,9 @@ namespace LearningVulkan
 			dynamicStateCreateInfo.pDynamicStates = dynamicStates.data();
 			
 			graphicsPipelineCreateInfo.pDynamicState = &dynamicStateCreateInfo;
-		}
+#pragma endregion
 
-		{
-			VkPipelineRasterizationStateCreateInfo rasterizationStateCreateInfo{};
-			rasterizationStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
-			rasterizationStateCreateInfo.rasterizerDiscardEnable = VK_FALSE;
-			rasterizationStateCreateInfo.depthClampEnable = VK_FALSE;
-			rasterizationStateCreateInfo.cullMode = VK_CULL_MODE_BACK_BIT;
-			rasterizationStateCreateInfo.polygonMode = VK_POLYGON_MODE_FILL;
-			rasterizationStateCreateInfo.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
-			rasterizationStateCreateInfo.lineWidth = 1.0f;
-			rasterizationStateCreateInfo.depthBiasClamp = VK_FALSE;
-
-			graphicsPipelineCreateInfo.pRasterizationState = &rasterizationStateCreateInfo;
-		}
-
-		{
+#pragma region Viewport State
 			VkPipelineViewportStateCreateInfo viewportStateCreateInfo{};
 			viewportStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
 			// not setting the actual viewport and scissor states just how many there will be
@@ -561,9 +598,9 @@ namespace LearningVulkan
 			viewportStateCreateInfo.viewportCount = 1;
 
 			graphicsPipelineCreateInfo.pViewportState = &viewportStateCreateInfo;
-		}
+#pragma endregion
 
-		{
+#pragma region Rasterization State
 			VkPipelineRasterizationStateCreateInfo rasterizationStateCreateInfo{};
 			rasterizationStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
 
@@ -579,22 +616,18 @@ namespace LearningVulkan
 			rasterizationStateCreateInfo.depthBiasEnable = VK_FALSE;
 
 			graphicsPipelineCreateInfo.pRasterizationState = &rasterizationStateCreateInfo;
-		}
+#pragma endregion
 
-		{
+#pragma region Multisample State
 			VkPipelineMultisampleStateCreateInfo multisampleStateCreateInfo{};
 			multisampleStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
 			multisampleStateCreateInfo.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
 
 			graphicsPipelineCreateInfo.pMultisampleState = &multisampleStateCreateInfo;
-		}
+#pragma endregion
 
-		{
-			// TODO:
-			graphicsPipelineCreateInfo.pDepthStencilState = nullptr;
-		}
 
-		{
+#pragma region Color Blending
 			VkPipelineColorBlendAttachmentState colorBlendAttachmentState{};
 
 			// specifies to which color components to write to
@@ -625,9 +658,9 @@ namespace LearningVulkan
 			colorBlendStateCreateInfo.logicOpEnable = VK_FALSE;
 
 			graphicsPipelineCreateInfo.pColorBlendState = &colorBlendStateCreateInfo;
-		}
+#pragma  endregion
 
-		{
+#pragma region Pipeline Layout
 			VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo{};
 			pipelineLayoutCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
 			pipelineLayoutCreateInfo.setLayoutCount = 1;
@@ -636,12 +669,22 @@ namespace LearningVulkan
 			assert(vkCreatePipelineLayout(m_LogicalDevice->GetVulkanDevice(), &pipelineLayoutCreateInfo, nullptr, &m_PipelineLayout) == VK_SUCCESS);
 
 			graphicsPipelineCreateInfo.layout = m_PipelineLayout;
-		}
+#pragma endregion
 
-		{
+#pragma region Render Pass;
 			graphicsPipelineCreateInfo.renderPass = m_RenderPass;
 			graphicsPipelineCreateInfo.subpass = 0;
-		}
+#pragma endregion
+
+#pragma region Depth Stencil State
+			VkPipelineDepthStencilStateCreateInfo pipelineDepthStencilCreateInfo{};
+			pipelineDepthStencilCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
+			pipelineDepthStencilCreateInfo.depthTestEnable = VK_TRUE;
+			pipelineDepthStencilCreateInfo.depthWriteEnable = VK_TRUE;
+			pipelineDepthStencilCreateInfo.depthCompareOp = VK_COMPARE_OP_LESS;
+
+			graphicsPipelineCreateInfo.pDepthStencilState = &pipelineDepthStencilCreateInfo;
+#pragma endregion
 
 		assert(vkCreateGraphicsPipelines(m_LogicalDevice->GetVulkanDevice(), VK_NULL_HANDLE, 1, &graphicsPipelineCreateInfo, nullptr, &m_Pipeline) == VK_SUCCESS);
 
@@ -809,6 +852,33 @@ namespace LearningVulkan
 	static  bool first = true;
 	static double pitch = 0.0, yaw = -90.0;
 
+	static glm::mat4 testlookat(glm::vec3 position, glm::vec3 direction, glm::vec3 worldUp)
+	{
+		glm::vec3 front = glm::normalize(position - direction);
+		glm::vec3 right = glm::normalize(glm::cross(direction, glm::normalize(worldUp)));
+		glm::vec3 up =  glm::normalize(glm::cross(front, right));
+		glm::mat4 directionMat = glm::mat4(1.0f);
+		directionMat[0][0] = right.x;
+		directionMat[1][0] = right.y;
+		directionMat[2][0] = right.z;
+
+		directionMat[0][1] = up.x;
+		directionMat[1][1] = up.y;
+		directionMat[2][1] = up.z;
+
+		directionMat[0][2] = front.x;
+		directionMat[1][2] = front.y;
+		directionMat[2][2] = front.z;
+
+		glm::mat4 positionMat(1.0f);
+		positionMat[3][0] = -position.x;
+		positionMat[3][1] = -position.y;
+		positionMat[3][2] = -position.z;
+
+
+		return directionMat * positionMat;
+	}
+
 	void RendererContext::UpdateUniformBuffer(uint32_t frameIndex)
 	{
 		static auto startTime = std::chrono::high_resolution_clock::now();
@@ -839,6 +909,7 @@ namespace LearningVulkan
 			velocity = glm::normalize(velocity);
 
 		position += velocity * Application::Get()->GetDeltaTime() * 6.0f;
+		position.y = 0.0f;
 
 		double mouseX, mouseY;
 		glfwGetCursorPos(window, &mouseX, &mouseY);
@@ -880,11 +951,11 @@ namespace LearningVulkan
 
 		CameraData cameraData;
 
-		cameraData.View = lookAt(position, position + front, up);
+		cameraData.View = glm::lookAt(position, position + front, up);
 		auto swapchainExtent = m_Swapchain->GetExtent();
-		cameraData.Projection = glm::perspective(glm::radians(45.0f), swapchainExtent.width / (float)swapchainExtent.height, 0.1f, 50.0f);
+		cameraData.Projection = glm::perspective(glm::radians(fov), swapchainExtent.width / (float)swapchainExtent.height, 0.1f, 50.0f);
 		
-		cameraData.Model = glm::rotate(glm::mat4(1.0f), time * glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+		cameraData.Model = glm::mat4(1.0f);
 
 		const PerFrameData& data = m_PerFrameData.at(frameIndex);
 		memcpy(data.UniformBufferMap, &cameraData, sizeof CameraData);
@@ -999,7 +1070,7 @@ namespace LearningVulkan
 		CopyBufferToImage(stagingBuffer, m_TestImage, width, height);
 		TransitionImageLayout(m_TestImage, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
 
-		CreateImageView();
+		CreateImageView(m_TestImage, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_ASPECT_COLOR_BIT, m_TestImageView);
 		CreateImageSampler();
 
 		vkDestroyBuffer(m_LogicalDevice->GetVulkanDevice(), stagingBuffer, nullptr);
@@ -1167,20 +1238,20 @@ namespace LearningVulkan
 		assert(vkEndCommandBuffer(commandBuffer) == VK_SUCCESS);
 	}
 
-	void RendererContext::CreateImageView()
+	void RendererContext::CreateImageView(const VkImage& image, VkFormat image_format, VkImageAspectFlags image_aspect_flags, VkImageView& image_view)
 	{
-		VkImageViewCreateInfo imageViewCreateInfo{};
-		imageViewCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-		imageViewCreateInfo.image = m_TestImage;
-		imageViewCreateInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-		imageViewCreateInfo.subresourceRange.baseArrayLayer = 0;
-		imageViewCreateInfo.subresourceRange.baseMipLevel = 0;
-		imageViewCreateInfo.subresourceRange.layerCount = 1;
-		imageViewCreateInfo.subresourceRange.levelCount = 1;
-		imageViewCreateInfo.format = VK_FORMAT_R8G8B8A8_SRGB;
-		imageViewCreateInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+		VkImageViewCreateInfo image_view_create_info{};
+		image_view_create_info.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+		image_view_create_info.image = image;
+		image_view_create_info.subresourceRange.aspectMask = image_aspect_flags;
+		image_view_create_info.subresourceRange.baseArrayLayer = 0;
+		image_view_create_info.subresourceRange.baseMipLevel = 0;
+		image_view_create_info.subresourceRange.layerCount = 1;
+		image_view_create_info.subresourceRange.levelCount = 1;
+		image_view_create_info.format = image_format;
+		image_view_create_info.viewType = VK_IMAGE_VIEW_TYPE_2D;
 
-		assert(vkCreateImageView(m_LogicalDevice->GetVulkanDevice(), &imageViewCreateInfo, nullptr, &m_TestImageView) == VK_SUCCESS);
+		assert(vkCreateImageView(m_LogicalDevice->GetVulkanDevice(), &image_view_create_info, nullptr, &image_view) == VK_SUCCESS);
 	}
 
 	void RendererContext::CreateImageSampler()
@@ -1198,5 +1269,46 @@ namespace LearningVulkan
 		samplerCreateInfo.maxAnisotropy = properties.limits.maxSamplerAnisotropy;
 
 		assert(vkCreateSampler(m_LogicalDevice->GetVulkanDevice(), &samplerCreateInfo, nullptr, &m_TestImageSampler) == VK_SUCCESS);
+	}
+
+	void RendererContext::CreateDepthResources()
+	{
+		std::array desired_depth_formats = {
+			VK_FORMAT_D32_SFLOAT,
+			VK_FORMAT_D32_SFLOAT_S8_UINT,
+			VK_FORMAT_D24_UNORM_S8_UINT,
+		};
+
+		for (auto desired_depth_format : desired_depth_formats)
+		{
+			VkFormatProperties format_properties;
+			vkGetPhysicalDeviceFormatProperties(m_PhysicalDevice->GetPhysicalDevice(), desired_depth_format, &format_properties);
+
+			if((format_properties.optimalTilingFeatures & VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT) == VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT)
+			{
+				m_DepthFormat = desired_depth_format;
+				break;
+			}
+			/*else if((format_properties.linearTilingFeatures & VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT) == VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT)
+			{
+				depth_format = desired_depth_format;
+				break;
+			}*/
+		}
+
+		assert(m_DepthFormat != VK_FORMAT_UNDEFINED);
+
+		auto swapchain_extent = m_Swapchain->GetExtent();
+		CreateImage(swapchain_extent.width, swapchain_extent.height, m_DepthFormat,
+			VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, m_DepthImage, m_DepthImageMemory);
+
+		CreateImageView(m_DepthImage, m_DepthFormat, VK_IMAGE_ASPECT_DEPTH_BIT, m_DepthImageView);
+	}
+
+	void RendererContext::DestroyDepthResources()
+	{
+		vkDestroyImageView(m_LogicalDevice->GetVulkanDevice(), m_DepthImageView, nullptr);
+		vkDestroyImage(m_LogicalDevice->GetVulkanDevice(), m_DepthImage, nullptr);
+		vkFreeMemory(m_LogicalDevice->GetVulkanDevice(), m_DepthImageMemory, nullptr);
 	}
 }

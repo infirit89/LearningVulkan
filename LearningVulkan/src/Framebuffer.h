@@ -2,15 +2,17 @@
 
 #include <vulkan/vulkan.h>
 
+#include <vector>
+
 namespace LearningVulkan 
 {
 	class Framebuffer
 	{
 	public:
-		Framebuffer(VkRenderPass renderPass, VkImageView attachment, uint32_t width, uint32_t height);
+		Framebuffer(VkRenderPass renderPass, const std::vector<VkImageView>& attachment, uint32_t width, uint32_t height);
 		~Framebuffer();
 
-		void Resize(VkImageView attachment, uint32_t width, uint32_t height);
+		void Resize(const std::vector<VkImageView>& attachment, uint32_t width, uint32_t height);
 		VkFramebuffer GetVulkanFramebuffer() const { return m_Framebuffer; }
 
 	private:
@@ -19,7 +21,7 @@ namespace LearningVulkan
 
 	private:
 		VkFramebuffer m_Framebuffer = VK_NULL_HANDLE;
-		VkImageView m_Attachment = VK_NULL_HANDLE;
+		std::vector<VkImageView> m_Attachments;
 		VkRenderPass m_RenderPass;
 		uint32_t m_Width, m_Height;
 	};
