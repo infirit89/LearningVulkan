@@ -9,10 +9,6 @@ layout(binding = 0) uniform Camera {
     mat4 View;
 } camera;
 
-// layout(binding = 2) uniform Model {
-//     mat4 Transform;
-// } model;
-
 layout(location = 0) out vec3 o_Color;
 layout(location = 1) out vec2 o_TextureCoordinates;
 

@@ -160,6 +160,9 @@ namespace LearningVulkan
 		CreateDescriptorSets();
 
 		CreateGraphicsPipeline();
+		AddCube();
+		AddCube(glm::translate(glm::mat4(1.0f), glm::vec3(3.0f, 0.0f, 0.0f)));
+
 		CreateVertexBuffer();
 		CreateIndexBuffer();
 
@@ -177,7 +180,7 @@ namespace LearningVulkan
 			vkDestroyFence(m_LogicalDevice->GetVulkanDevice(), data.PresentFence, nullptr);
 			vkFreeCommandBuffers(m_LogicalDevice->GetVulkanDevice(), data.CommandPool, 1, &data.CommandBuffer);
 			vkDestroyCommandPool(m_LogicalDevice->GetVulkanDevice(), data.CommandPool, nullptr);
-			delete data.UniformBuffer;
+			delete data.CameraUniformBuffer;
 		}
 
 		vkDestroyPipeline(m_LogicalDevice->GetVulkanDevice(), m_Pipeline, nullptr);
@@ -462,9 +465,9 @@ namespace LearningVulkan
 			data.QueueReadySemaphore,
 			data.PresentFence);
 
-		data.UniformBuffer = new GPUBuffer(VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, sizeof CameraData, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+		data.CameraUniformBuffer = new GPUBuffer(VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, sizeof CameraData, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
 
-		data.UniformBufferMemory = data.UniformBuffer->MapMemory();
+		data.CameraUniformBufferMemory = data.CameraUniformBuffer->MapMemory();
 	}
 
 	void RendererContext::DrawFrame()
@@ -877,7 +880,7 @@ namespace LearningVulkan
 		cameraData.Projection = glm::perspective(glm::radians(fov), swapchainExtent.width / (float)swapchainExtent.height, 0.1f, 50.0f);
 		
 		const PerFrameData& data = m_PerFrameData.at(frameIndex);
-		memcpy(data.UniformBufferMemory, &cameraData, sizeof CameraData);
+		memcpy(data.CameraUniformBufferMemory, &cameraData, sizeof CameraData);
 	}
 
 	void RendererContext::CreateDescriptorPool()
@@ -922,7 +925,7 @@ namespace LearningVulkan
 		{
 			const PerFrameData& perframeData = m_PerFrameData.at(i);
 			VkDescriptorBufferInfo bufferInfo{};
-			bufferInfo.buffer = perframeData.UniformBuffer->GetVulkanBuffer();
+			bufferInfo.buffer = perframeData.CameraUniformBuffer->GetVulkanBuffer();
 			bufferInfo.range = sizeof CameraData;
 			bufferInfo.offset = 0;
 
@@ -1222,5 +1225,52 @@ namespace LearningVulkan
 		vkDestroyImageView(m_LogicalDevice->GetVulkanDevice(), m_DepthImageView, nullptr);
 		vkDestroyImage(m_LogicalDevice->GetVulkanDevice(), m_DepthImage, nullptr);
 		vkFreeMemory(m_LogicalDevice->GetVulkanDevice(), m_DepthImageMemory, nullptr);
+	}
+
+	void RendererContext::AddCube(const glm::mat4& transformMatrix)
+	{
+		m_Vertices.push_back({ .Position = transformMatrix * glm::vec4{  0.5f, -0.5f, 0.5f, 1.0f }, .Color = { 1.0, 1.0, 1.0 }, .TextureCoordinates = { 0.0f, 1.0f }, });
+		m_Vertices.push_back({ .Position = transformMatrix * glm::vec4{  0.5f,  0.5f, 0.5f, 1.0f }, .Color = { 1.0, 1.0, 1.0 }, .TextureCoordinates = {0.0f, 0.0f}, });
+		m_Vertices.push_back({ .Position = transformMatrix * glm::vec4{ -0.5f,  0.5f, 0.5f, 1.0f }, .Color = { 1.0, 1.0, 1.0 }, .TextureCoordinates = {1.0f, 0.0f}, });
+		m_Vertices.push_back({ .Position = transformMatrix * glm::vec4{ -0.5f, -0.5f, 0.5f, 1.0f }, .Color = { 1.0, 1.0, 1.0 }, .TextureCoordinates = {1.0f, 1.0f}, });
+
+		m_Vertices.push_back({ .Position = transformMatrix * glm::vec4{ -0.5f, -0.5f, -0.5f, 1.0f }, .Color = { 1.0, 1.0, 1.0 }, .TextureCoordinates = {0.0f, 1.0f}, });
+		m_Vertices.push_back({ .Position = transformMatrix * glm::vec4{ -0.5f,  0.5f, -0.5f, 1.0f }, .Color = { 1.0, 1.0, 1.0 }, .TextureCoordinates = {0.0f, 0.0f}, });
+		m_Vertices.push_back({ .Position = transformMatrix * glm::vec4{  0.5f,  0.5f, -0.5f, 1.0f }, .Color = { 1.0, 1.0, 1.0 }, .TextureCoordinates = {1.0f, 0.0f}, });
+		m_Vertices.push_back({ .Position = transformMatrix * glm::vec4{  0.5f, -0.5f, -0.5f, 1.0f }, .Color = { 1.0, 1.0, 1.0 }, .TextureCoordinates = {1.0f, 1.0f}, });
+
+		m_Vertices.push_back({ .Position = transformMatrix * glm::vec4{ -0.5f, -0.5f,  0.5f, 1.0f }, .Color = { 1.0, 1.0, 1.0 }, .TextureCoordinates = {0.0f, 1.0f}, });
+		m_Vertices.push_back({ .Position = transformMatrix * glm::vec4{ -0.5f,  0.5f,  0.5f, 1.0f }, .Color = { 1.0, 1.0, 1.0 }, .TextureCoordinates = {0.0f, 0.0f}, });
+		m_Vertices.push_back({ .Position = transformMatrix * glm::vec4{ -0.5f,  0.5f, -0.5f, 1.0f }, .Color = { 1.0, 1.0, 1.0 }, .TextureCoordinates = {1.0f, 0.0f}, });
+		m_Vertices.push_back({ .Position = transformMatrix * glm::vec4{ -0.5f, -0.5f, -0.5f, 1.0f }, .Color = { 1.0, 1.0, 1.0 }, .TextureCoordinates = {1.0f, 1.0f}, });
+
+		m_Vertices.push_back({ .Position = transformMatrix * glm::vec4{ 0.5f, -0.5f, -0.5f, 1.0f }, .Color = { 1.0, 1.0, 1.0 }, .TextureCoordinates = {0.0f, 1.0f}, });
+		m_Vertices.push_back({ .Position = transformMatrix * glm::vec4{ 0.5f,  0.5f, -0.5f, 1.0f }, .Color = { 1.0, 1.0, 1.0 }, .TextureCoordinates = {0.0f, 0.0f}, });
+		m_Vertices.push_back({ .Position = transformMatrix * glm::vec4{ 0.5f,  0.5f,  0.5f, 1.0f }, .Color = { 1.0, 1.0, 1.0 }, .TextureCoordinates = {1.0f, 0.0f}, });
+		m_Vertices.push_back({ .Position = transformMatrix * glm::vec4{ 0.5f, -0.5f,  0.5f, 1.0f }, .Color = { 1.0, 1.0, 1.0 }, .TextureCoordinates = {1.0f, 1.0f}, });
+
+		m_Vertices.push_back({ .Position = transformMatrix * glm::vec4{  0.5f, -0.5f,  0.5f, 1.0f }, .Color = { 1.0, 1.0, 1.0 }, .TextureCoordinates = {0.0f, 1.0f}, });
+		m_Vertices.push_back({ .Position = transformMatrix * glm::vec4{ -0.5f, -0.5f,  0.5f, 1.0f }, .Color = { 1.0, 1.0, 1.0 }, .TextureCoordinates = {0.0f, 0.0f}, });
+		m_Vertices.push_back({ .Position = transformMatrix * glm::vec4{ -0.5f, -0.5f, -0.5f, 1.0f }, .Color = { 1.0, 1.0, 1.0 }, .TextureCoordinates = {1.0f, 0.0f}, });
+		m_Vertices.push_back({ .Position = transformMatrix * glm::vec4{  0.5f, -0.5f, -0.5f, 1.0f }, .Color = { 1.0, 1.0, 1.0 }, .TextureCoordinates = {1.0f, 1.0f}, });
+
+		m_Vertices.push_back({ .Position = transformMatrix * glm::vec4{  0.5f, 0.5f, -0.5f, 1.0f }, .Color = { 1.0, 1.0, 1.0 }, .TextureCoordinates = {0.0f, 1.0f}, });
+		m_Vertices.push_back({ .Position = transformMatrix * glm::vec4{ -0.5f, 0.5f, -0.5f, 1.0f }, .Color = { 1.0, 1.0, 1.0 }, .TextureCoordinates = {0.0f, 0.0f}, });
+		m_Vertices.push_back({ .Position = transformMatrix * glm::vec4{ -0.5f, 0.5f,  0.5f, 1.0f }, .Color = { 1.0, 1.0, 1.0 }, .TextureCoordinates = {1.0f, 0.0f}, });
+		m_Vertices.push_back({ .Position = transformMatrix * glm::vec4{  0.5f, 0.5f,  0.5f, 1.0f }, .Color = { 1.0, 1.0, 1.0 }, .TextureCoordinates = {1.0f, 1.0f}, });
+
+		size_t previousSize = m_Indices.size();
+		m_Indices.resize( previousSize + 36);
+		for (uint32_t i = 0; i < 6; ++i)
+		{
+			m_Indices[previousSize + (i * 6 + 0)] = currentIndex + 0;
+			m_Indices[previousSize + (i * 6 + 1)] = currentIndex + 1;
+			m_Indices[previousSize + (i * 6 + 2)] = currentIndex + 2;
+			m_Indices[previousSize + (i * 6 + 3)] = currentIndex + 2;
+			m_Indices[previousSize + (i * 6 + 4)] = currentIndex + 3;
+			m_Indices[previousSize + (i * 6 + 5)] = currentIndex + 0;
+			currentIndex +=  4;
+		}
+
 	}
 }
