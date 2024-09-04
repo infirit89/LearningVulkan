@@ -117,18 +117,42 @@ namespace LearningVulkan
 		std::vector<Vertex> m_Vertices = {
 			{ .Position = { 0.5f, -0.5f, 0.5f }, .Color = { 1.0, 1.0, 1.0 }, .TextureCoordinates = {0.0f, 1.0f}, },
 			{ .Position = { 0.5f, 0.5f, 0.5f }, .Color = { 1.0, 1.0, 1.0 }, .TextureCoordinates = {0.0f, 0.0f}, },
-			{ .Position = { -0.5f, 0.5f, 0.0f }, .Color = { 1.0, 1.0, 1.0 }, .TextureCoordinates = {1.0f, 0.0f}, },
-			{ .Position = { -0.5f, -0.5f, 0.0f }, .Color = { 1.0, 1.0, 1.0 }, .TextureCoordinates = {1.0f, 1.0f}, },
+			{ .Position = { -0.5f, 0.5f, 0.5f }, .Color = { 1.0, 1.0, 1.0 }, .TextureCoordinates = {1.0f, 0.0f}, },
+			{ .Position = { -0.5f, -0.5f, 0.5f }, .Color = { 1.0, 1.0, 1.0 }, .TextureCoordinates = {1.0f, 1.0f}, },
 
-			//{.Position = { 0.5f, -0.5f, -0.5f }, .Color = { 1.0, 1.0, 1.0 }, .TextureCoordinates = {0.0f, 1.0f}, },
-			//{.Position = { 0.5f, 0.5f, -0.5f }, .Color = { 1.0, 1.0, 1.0 }, .TextureCoordinates = {0.0f, 0.0f}, },
-			//{.Position = { -0.5f, 0.5f, -0.5f }, .Color = { 1.0, 1.0, 1.0 }, .TextureCoordinates = {1.0f, 0.0f}, },
-			//{.Position = { -0.5f, -0.5f, -0.5f }, .Color = { 1.0, 1.0, 1.0 }, .TextureCoordinates = {1.0f, 1.0f}, },
+			{.Position = { -0.5f, -0.5f, -0.5f }, .Color = { 1.0, 1.0, 1.0 }, .TextureCoordinates = {0.0f, 1.0f}, },
+			{.Position = { -0.5f, 0.5f, -0.5f }, .Color = { 1.0, 1.0, 1.0 }, .TextureCoordinates = {0.0f, 0.0f}, },
+			{.Position = { 0.5f, 0.5f, -0.5f }, .Color = { 1.0, 1.0, 1.0 }, .TextureCoordinates = {1.0f, 0.0f}, },
+			{.Position = { 0.5f, -0.5f, -0.5f }, .Color = { 1.0, 1.0, 1.0 }, .TextureCoordinates = {1.0f, 1.0f}, },
+
+			{.Position = { -0.5f, -0.5f, 0.5f }, .Color = { 1.0, 1.0, 1.0 }, .TextureCoordinates = {0.0f, 1.0f}, },
+			{.Position = { -0.5f, 0.5f, 0.5f }, .Color = { 1.0, 1.0, 1.0 }, .TextureCoordinates = {0.0f, 0.0f}, },
+			{.Position = { -0.5f, 0.5f, -0.5f }, .Color = { 1.0, 1.0, 1.0 }, .TextureCoordinates = {1.0f, 0.0f}, },
+			{.Position = { -0.5f, -0.5f, -0.5f }, .Color = { 1.0, 1.0, 1.0 }, .TextureCoordinates = {1.0f, 1.0f}, },
+
+			{.Position = { 0.5f, -0.5f, -0.5f }, .Color = { 1.0, 1.0, 1.0 }, .TextureCoordinates = {0.0f, 1.0f}, },
+			{.Position = { 0.5f, 0.5f, -0.5f }, .Color = { 1.0, 1.0, 1.0 }, .TextureCoordinates = {0.0f, 0.0f}, },
+			{.Position = { 0.5f, 0.5f, 0.5f }, .Color = { 1.0, 1.0, 1.0 }, .TextureCoordinates = {1.0f, 0.0f}, },
+			{.Position = { 0.5f, -0.5f, 0.5f }, .Color = { 1.0, 1.0, 1.0 }, .TextureCoordinates = {1.0f, 1.0f}, },
+
+			{.Position = { 0.5f, -0.5f, 0.5f }, .Color = { 1.0, 1.0, 1.0 }, .TextureCoordinates = {0.0f, 1.0f}, },
+			{.Position = { -0.5f, -0.5f, 0.5f }, .Color = { 1.0, 1.0, 1.0 }, .TextureCoordinates = {0.0f, 0.0f}, },
+			{.Position = { -0.5f, -0.5f, -0.5f }, .Color = { 1.0, 1.0, 1.0 }, .TextureCoordinates = {1.0f, 0.0f}, },
+			{.Position = { 0.5f, -0.5f, -0.5f }, .Color = { 1.0, 1.0, 1.0 }, .TextureCoordinates = {1.0f, 1.0f}, },
+
+			{.Position = { 0.5f, 0.5f, -0.5f }, .Color = { 1.0, 1.0, 1.0 }, .TextureCoordinates = {0.0f, 1.0f}, },
+			{.Position = { -0.5f, 0.5f, -0.5f }, .Color = { 1.0, 1.0, 1.0 }, .TextureCoordinates = {0.0f, 0.0f}, },
+			{.Position = { -0.5f, 0.5f, 0.5f }, .Color = { 1.0, 1.0, 1.0 }, .TextureCoordinates = {1.0f, 0.0f}, },
+			{.Position = { 0.5f, 0.5f, 0.5f }, .Color = { 1.0, 1.0, 1.0 }, .TextureCoordinates = {1.0f, 1.0f}, },
 		};
 
 		std::vector<uint32_t> m_Indices = {
 			0, 1, 2, 2, 3, 0,
-			//4, 5, 6, 6, 7, 4,
+			4, 5, 6, 6, 7, 4,
+			8, 9, 10, 10, 11, 8,
+			12, 13, 14, 14, 15, 12,
+			16, 17, 18, 18, 19, 16,
+			20, 21, 22, 22, 23, 20,
 		};
 
 		VkImage m_TestImage;

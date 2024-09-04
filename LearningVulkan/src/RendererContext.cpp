@@ -909,8 +909,7 @@ namespace LearningVulkan
 			velocity = glm::normalize(velocity);
 
 		position += velocity * Application::Get()->GetDeltaTime() * 6.0f;
-		position.y = 0.0f;
-
+		
 		double mouseX, mouseY;
 		glfwGetCursorPos(window, &mouseX, &mouseY);
 
