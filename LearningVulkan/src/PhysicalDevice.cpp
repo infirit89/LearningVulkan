@@ -161,6 +161,19 @@ namespace LearningVulkan
 		return swapChainSupport;
 	}
 
+	uint32_t PhysicalDevice::FindMemoryType(uint32_t memoryMask, VkMemoryPropertyFlags properties)
+	{
+		VkPhysicalDeviceMemoryProperties memoryProperties;
+		vkGetPhysicalDeviceMemoryProperties(m_PhysicalDevice, &memoryProperties);
+
+		for (uint32_t i = 0; i < memoryProperties.memoryTypeCount; i++)
+			if (memoryMask & (1 << i) && (memoryProperties.memoryTypes[i].propertyFlags & properties) == properties)
+				return i;
+
+		assert(false);
+		return 0;
+	}
+
 	PhysicalDevice* PhysicalDevice::GetSuitablePhysicalDevice()
 	{
 		uint32_t physicalDeviceCount = 0;

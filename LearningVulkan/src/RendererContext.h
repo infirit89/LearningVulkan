@@ -3,6 +3,7 @@
 #include "PhysicalDevice.h"
 #include "Swapchain.h"
 #include "Framebuffer.h"
+#include "GPUBuffer.h"
 
 #include <vulkan/vulkan.h>
 
@@ -23,9 +24,8 @@ namespace LearningVulkan
 		VkSemaphore QueueReadySemaphore;
 
 		// uniform buffer:
-		VkBuffer UniformBuffer;
-		VkDeviceMemory UniformBufferMemory;
-		void* UniformBufferMap;
+		GPUBuffer* UniformBuffer;
+		void* UniformBufferMemory;
 	};
 
 	class RendererContext 
@@ -59,13 +59,12 @@ namespace LearningVulkan
 		VkCommandPool CreateCommandPool(VkCommandPoolCreateFlags commandPoolFlags, uint32_t queueFamilyIndex) const;
 
 		static VkCommandBuffer AllocateCommandBuffer(VkCommandPool commandPool);
-		void RecordCommandBuffer(uint32_t imageIndex, VkCommandBuffer commandBuffer) const;
+		void RecordCommandBuffer(uint32_t imageIndex, VkCommandBuffer commandBuffer);
 		static void CreateSyncObjects(VkSemaphore& swapchainImageAcquireSemaphore, VkSemaphore& queueReadySemaphore, VkFence& presentFence);
 
 		void CreatePerFrameObjects(uint32_t frameIndex);
 		void CreateGraphicsPipeline();
 		static VkShaderModule CreateShader(const std::vector<char>& shaderData);
-		void CreateBuffer(VkBufferUsageFlags usage, VkDeviceSize size, VkMemoryPropertyFlags memoryProperties, VkBuffer& buffer, VkDeviceMemory& bufferMemory);
 		void CreateVertexBuffer();
 		void CopyBuffer(VkBuffer sourceBuffer, VkBuffer destinationBuffer, VkDeviceSize size);
 		void CreateIndexBuffer();
@@ -103,13 +102,11 @@ namespace LearningVulkan
 		std::vector<PerFrameData> m_PerFrameData;
 
 		// vertex buffer:
-		VkBuffer m_VertexBuffer;
-		VkDeviceMemory m_VertexBufferMemory;
+		GPUBuffer* m_VertexBuffer;
 
 		// index buffer:
-		VkBuffer m_IndexBuffer;
-		VkDeviceMemory m_IndexBufferMemory;
-
+		GPUBuffer* m_IndexBuffer;
+		
 		VkDescriptorSetLayout m_CameraDescriptorSetLayout;
 		VkDescriptorPool m_DescriptorPool;
 		std::vector<VkDescriptorSet> m_DescriptorSets;

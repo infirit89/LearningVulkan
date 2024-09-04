@@ -7,8 +7,11 @@ layout(location = 2) in vec2 a_TextureCoordinates;
 layout(binding = 0) uniform Camera {
     mat4 Projection;
     mat4 View;
-    mat4 Model;
 } camera;
+
+// layout(binding = 2) uniform Model {
+//     mat4 Transform;
+// } model;
 
 layout(location = 0) out vec3 o_Color;
 layout(location = 1) out vec2 o_TextureCoordinates;
@@ -16,7 +19,7 @@ layout(location = 1) out vec2 o_TextureCoordinates;
 void main()
 {
     vec4 position = vec4(a_Position, 1.0);
-    gl_Position = camera.Projection * camera.View * camera.Model * position;
+    gl_Position = camera.Projection * camera.View * position;
     o_Color = a_Color;
     o_TextureCoordinates = a_TextureCoordinates;
 }

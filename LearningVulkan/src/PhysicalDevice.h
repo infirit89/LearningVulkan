@@ -36,6 +36,7 @@ namespace LearningVulkan
 
 		LogicalDevice* CreateLogicalDevice();
 		SwapchainSupportDetails QuerySwapChainSupport();
+		uint32_t FindMemoryType(uint32_t memoryMask, VkMemoryPropertyFlags properties);
 		
 	private:
 		PhysicalDevice(VkPhysicalDevice physicalDevice);

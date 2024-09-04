@@ -84,19 +84,6 @@ namespace LearningVulkan
 			func(instance, debugMessenger, allocator);
 		}
 
-		uint32_t FindMemoryType(uint32_t memoryMask, VkMemoryPropertyFlags properties, VkPhysicalDevice physicalDevice)
-		{
-			VkPhysicalDeviceMemoryProperties memoryProperties;
-			vkGetPhysicalDeviceMemoryProperties(physicalDevice, &memoryProperties);
-
-			for (uint32_t i = 0; i < memoryProperties.memoryTypeCount; i++)
-				if (memoryMask & (1 << i) && (memoryProperties.memoryTypes[i].propertyFlags & properties) == properties)
-					return i;
-
-			assert(false);
-			return 0;
-		}
-
 		std::vector<char> ReadShaderFile(const std::filesystem::path& shaderPath)
 		{
 			std::ifstream file(shaderPath, std::ios::ate | std::ios::binary);
@@ -190,8 +177,7 @@ namespace LearningVulkan
 			vkDestroyFence(m_LogicalDevice->GetVulkanDevice(), data.PresentFence, nullptr);
 			vkFreeCommandBuffers(m_LogicalDevice->GetVulkanDevice(), data.CommandPool, 1, &data.CommandBuffer);
 			vkDestroyCommandPool(m_LogicalDevice->GetVulkanDevice(), data.CommandPool, nullptr);
-			vkDestroyBuffer(m_LogicalDevice->GetVulkanDevice(), data.UniformBuffer, nullptr);
-			vkFreeMemory(m_LogicalDevice->GetVulkanDevice(), data.UniformBufferMemory, nullptr);
+			delete data.UniformBuffer;
 		}
 
 		vkDestroyPipeline(m_LogicalDevice->GetVulkanDevice(), m_Pipeline, nullptr);
@@ -208,11 +194,9 @@ namespace LearningVulkan
 		DestroyDepthResources();
 		delete m_Swapchain;
 
-		vkDestroyBuffer(m_LogicalDevice->GetVulkanDevice(), m_VertexBuffer, nullptr);
-		vkFreeMemory(m_LogicalDevice->GetVulkanDevice(), m_VertexBufferMemory, nullptr);
+		delete m_VertexBuffer;
 
-		vkDestroyBuffer(m_LogicalDevice->GetVulkanDevice(), m_IndexBuffer, nullptr);
-		vkFreeMemory(m_LogicalDevice->GetVulkanDevice(), m_IndexBufferMemory, nullptr);
+		delete m_IndexBuffer;
 
 		vkDestroySampler(m_LogicalDevice->GetVulkanDevice(), m_TestImageSampler, nullptr);
 		vkDestroyImageView(m_LogicalDevice->GetVulkanDevice(), m_TestImageView, nullptr);
@@ -399,8 +383,9 @@ namespace LearningVulkan
 		return commandBuffer;
 	}
 
-	void RendererContext::RecordCommandBuffer(uint32_t imageIndex, VkCommandBuffer commandBuffer) const
+	void RendererContext::RecordCommandBuffer(uint32_t imageIndex, VkCommandBuffer commandBuffer)
 	{
+		
 		VkCommandBufferBeginInfo commandBufferInfo{};
 		commandBufferInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
 
@@ -423,9 +408,10 @@ namespace LearningVulkan
 		vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_Pipeline);
 
 		VkDeviceSize deviceSizes[] = { 0 };
-		vkCmdBindVertexBuffers(commandBuffer, 0, 1, &m_VertexBuffer, deviceSizes);
+		VkBuffer vertexBuffer = m_VertexBuffer->GetVulkanBuffer();
+		vkCmdBindVertexBuffers(commandBuffer, 0, 1, &vertexBuffer, deviceSizes);
 
-		vkCmdBindIndexBuffer(commandBuffer, m_IndexBuffer, 0, VK_INDEX_TYPE_UINT32);
+		vkCmdBindIndexBuffer(commandBuffer, m_IndexBuffer->GetVulkanBuffer(), 0, VK_INDEX_TYPE_UINT32);
 
 		VkViewport viewport;
 		viewport.x = 0;
@@ -476,12 +462,9 @@ namespace LearningVulkan
 			data.QueueReadySemaphore,
 			data.PresentFence);
 
-		CreateBuffer(
-			VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
-			sizeof CameraData,
-			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, data.UniformBuffer, data.UniformBufferMemory);
+		data.UniformBuffer = new GPUBuffer(VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, sizeof CameraData, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
 
-		assert(vkMapMemory(m_LogicalDevice->GetVulkanDevice(), data.UniformBufferMemory, 0, sizeof CameraData, 0, &data.UniformBufferMap) == VK_SUCCESS);
+		data.UniformBufferMemory = data.UniformBuffer->MapMemory();
 	}
 
 	void RendererContext::DrawFrame()
@@ -494,9 +477,10 @@ namespace LearningVulkan
 		m_Swapchain->AcquireNextImage(currentFrameData.SwapchainImageAcquireSemaphore, imageIndex);
 
 		vkResetCommandBuffer(currentFrameData.CommandBuffer, 0);
-		RecordCommandBuffer(imageIndex, currentFrameData.CommandBuffer);
 
 		UpdateUniformBuffer(m_FrameIndex);
+
+		RecordCommandBuffer(imageIndex, currentFrameData.CommandBuffer);
 
 		VkSubmitInfo submitInfo{};
 		submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
@@ -704,70 +688,18 @@ namespace LearningVulkan
 		return shaderModule;
 	}
 
-	void RendererContext::CreateBuffer(VkBufferUsageFlags usage, VkDeviceSize size,
-		VkMemoryPropertyFlags memoryProperties, VkBuffer& buffer, VkDeviceMemory& bufferMemory)
-	{
-		const QueueFamilyIndices& queueFamilyIndices = m_PhysicalDevice->GetQueueFamilyIndices();
-
-		std::array queueFamilyIndicesArr = {
-			queueFamilyIndices.GraphicsFamily.value(),
-			queueFamilyIndices.TransferFamily.value(),
-		};
-
-		VkBufferCreateInfo bufferCreateInfo{};
-		bufferCreateInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-		bufferCreateInfo.usage = usage;
-		bufferCreateInfo.sharingMode = VK_SHARING_MODE_CONCURRENT;
-		bufferCreateInfo.size = size;
-		bufferCreateInfo.queueFamilyIndexCount = queueFamilyIndicesArr.size();
-		bufferCreateInfo.pQueueFamilyIndices = queueFamilyIndicesArr.data();
-
-		assert(vkCreateBuffer(m_LogicalDevice->GetVulkanDevice(), &bufferCreateInfo, nullptr, &buffer) == VK_SUCCESS);
-
-		VkMemoryRequirements memoryRequirements;
-		vkGetBufferMemoryRequirements(m_LogicalDevice->GetVulkanDevice(), buffer, &memoryRequirements);
-
-		VkMemoryAllocateInfo allocateInfo{};
-		allocateInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-		allocateInfo.allocationSize = memoryRequirements.size;
-		allocateInfo.memoryTypeIndex = FindMemoryType(
-			memoryRequirements.memoryTypeBits,
-			memoryProperties,
-			m_PhysicalDevice->GetPhysicalDevice());
-
-
-		assert(vkAllocateMemory(m_LogicalDevice->GetVulkanDevice(), &allocateInfo, nullptr, &bufferMemory) == VK_SUCCESS);
-
-		assert(vkBindBufferMemory(m_LogicalDevice->GetVulkanDevice(), buffer, bufferMemory, 0) == VK_SUCCESS);
-	}
-
 	void RendererContext::CreateVertexBuffer()
 	{
-		VkBuffer stagingBuffer;
-		VkDeviceMemory stagingBufferMemory;
 		VkDeviceSize bufferSize = sizeof Vertex * m_Vertices.size();
-		CreateBuffer(
-				VK_BUFFER_USAGE_TRANSFER_SRC_BIT, 
-				bufferSize,
-	VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT, stagingBuffer, stagingBufferMemory);
-
-		void* data;
-		vkMapMemory(m_LogicalDevice->GetVulkanDevice(), stagingBufferMemory, 0, bufferSize, 0, &data);
+		GPUBuffer stagingBuffer(VK_BUFFER_USAGE_TRANSFER_SRC_BIT, bufferSize, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+		
+		void* data = stagingBuffer.MapMemory();
 		memcpy(data, m_Vertices.data(), sizeof(Vertex) * m_Vertices.size());
-		vkUnmapMemory(m_LogicalDevice->GetVulkanDevice(), stagingBufferMemory);
+		stagingBuffer.UnmapMemory();
 
-		CreateBuffer(
-			VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
-			bufferSize,
-			VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-			m_VertexBuffer,
-			m_VertexBufferMemory
-		);
+		m_VertexBuffer = new GPUBuffer(VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, bufferSize, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 
-		CopyBuffer(stagingBuffer, m_VertexBuffer, bufferSize);
-
-		vkDestroyBuffer(m_LogicalDevice->GetVulkanDevice(), stagingBuffer, nullptr);
-		vkFreeMemory(m_LogicalDevice->GetVulkanDevice(), stagingBufferMemory, nullptr);
+		CopyBuffer(stagingBuffer.GetVulkanBuffer(), m_VertexBuffer->GetVulkanBuffer(), bufferSize);
 	}
 
 	void RendererContext::CopyBuffer(VkBuffer sourceBuffer, VkBuffer destinationBuffer, VkDeviceSize size)
@@ -795,26 +727,16 @@ namespace LearningVulkan
 
 	void RendererContext::CreateIndexBuffer()
 	{
-		VkBuffer stagingBuffer;
-		VkDeviceMemory stagingBufferMemory;
 		VkDeviceSize bufferSize = sizeof uint32_t * m_Indices.size();
+		GPUBuffer stagingBuffer(VK_BUFFER_USAGE_TRANSFER_SRC_BIT, bufferSize, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
 
-		CreateBuffer(
-			VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
-			bufferSize,
-			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, stagingBuffer, stagingBufferMemory);
-
-		void* data;
-		assert(vkMapMemory(m_LogicalDevice->GetVulkanDevice(), stagingBufferMemory, 0, bufferSize, 0, &data) == VK_SUCCESS);
+		void* data = stagingBuffer.MapMemory();
 		memcpy(data, m_Indices.data(), bufferSize);
-		vkUnmapMemory(m_LogicalDevice->GetVulkanDevice(), stagingBufferMemory);
+		stagingBuffer.UnmapMemory();
 
-		CreateBuffer(VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT, bufferSize, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, m_IndexBuffer, m_IndexBufferMemory);
+		m_IndexBuffer = new GPUBuffer(VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT, bufferSize, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 
-		CopyBuffer(stagingBuffer, m_IndexBuffer, bufferSize);
-
-		vkDestroyBuffer(m_LogicalDevice->GetVulkanDevice(), stagingBuffer, nullptr);
-		vkFreeMemory(m_LogicalDevice->GetVulkanDevice(), stagingBufferMemory, nullptr);
+		CopyBuffer(stagingBuffer.GetVulkanBuffer(), m_IndexBuffer->GetVulkanBuffer(), bufferSize);
 	}
 
 	void RendererContext::CreateCameraDescriptorSetLayout()
@@ -954,10 +876,8 @@ namespace LearningVulkan
 		auto swapchainExtent = m_Swapchain->GetExtent();
 		cameraData.Projection = glm::perspective(glm::radians(fov), swapchainExtent.width / (float)swapchainExtent.height, 0.1f, 50.0f);
 		
-		cameraData.Model = glm::mat4(1.0f);
-
 		const PerFrameData& data = m_PerFrameData.at(frameIndex);
-		memcpy(data.UniformBufferMap, &cameraData, sizeof CameraData);
+		memcpy(data.UniformBufferMemory, &cameraData, sizeof CameraData);
 	}
 
 	void RendererContext::CreateDescriptorPool()
@@ -1002,7 +922,7 @@ namespace LearningVulkan
 		{
 			const PerFrameData& perframeData = m_PerFrameData.at(i);
 			VkDescriptorBufferInfo bufferInfo{};
-			bufferInfo.buffer = perframeData.UniformBuffer;
+			bufferInfo.buffer = perframeData.UniformBuffer->GetVulkanBuffer();
 			bufferInfo.range = sizeof CameraData;
 			bufferInfo.offset = 0;
 
@@ -1048,15 +968,11 @@ namespace LearningVulkan
 
 		VkDeviceSize imageSize = width * height * 4;
 
-		VkBuffer stagingBuffer;
-		VkDeviceMemory stagingBufferMemory;
+		GPUBuffer stagingBuffer(VK_BUFFER_USAGE_TRANSFER_SRC_BIT, imageSize, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
 
-		CreateBuffer(VK_BUFFER_USAGE_TRANSFER_SRC_BIT, imageSize, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, stagingBuffer, stagingBufferMemory);
-
-		void* data;
-		vkMapMemory(m_LogicalDevice->GetVulkanDevice(), stagingBufferMemory, 0, imageSize, 0, &data);
+		void* data = stagingBuffer.MapMemory();
 		memcpy(data, imageData, imageSize);
-		vkUnmapMemory(m_LogicalDevice->GetVulkanDevice(), stagingBufferMemory);
+		stagingBuffer.UnmapMemory();
 
 		stbi_image_free(imageData);
 
@@ -1066,14 +982,11 @@ namespace LearningVulkan
 			VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, m_TestImage, m_TestImageMemory);
 
 		TransitionImageLayout(m_TestImage, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
-		CopyBufferToImage(stagingBuffer, m_TestImage, width, height);
+		CopyBufferToImage(stagingBuffer.GetVulkanBuffer(), m_TestImage, width, height);
 		TransitionImageLayout(m_TestImage, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
 
 		CreateImageView(m_TestImage, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_ASPECT_COLOR_BIT, m_TestImageView);
 		CreateImageSampler();
-
-		vkDestroyBuffer(m_LogicalDevice->GetVulkanDevice(), stagingBuffer, nullptr);
-		vkFreeMemory(m_LogicalDevice->GetVulkanDevice(), stagingBufferMemory, nullptr);
 	}
 
 	void RendererContext::CreateImage(uint32_t width, uint32_t height, VkFormat format, VkImageTiling imageTiling,
@@ -1113,7 +1026,7 @@ namespace LearningVulkan
 		VkMemoryAllocateInfo imageMemoryAllocateInfo{};
 		imageMemoryAllocateInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
 		imageMemoryAllocateInfo.allocationSize = imageMemoryRequirements.size;
-		imageMemoryAllocateInfo.memoryTypeIndex = FindMemoryType(imageMemoryRequirements.memoryTypeBits, memoryProperties, m_PhysicalDevice->GetPhysicalDevice());
+		imageMemoryAllocateInfo.memoryTypeIndex = m_PhysicalDevice->FindMemoryType(imageMemoryRequirements.memoryTypeBits, memoryProperties);
 
 		assert(vkAllocateMemory(m_LogicalDevice->GetVulkanDevice(), &imageMemoryAllocateInfo, nullptr, &imageMemory) == VK_SUCCESS);
 
