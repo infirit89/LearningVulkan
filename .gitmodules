@@ -4,11 +4,8 @@
 [submodule "vendor/glm"]
 	path = vendor/glm
 	url = https://github.com/g-truc/glm
-[submodule "optick"]
-	path = optick
-	url = https://github.com/infirit89/optick
 [submodule "vendor/optick"]
-	path = Vendor/optick
+	path = vendor/optick
 	url = https://github.com/infirit89/optick
 [submodule "premake-ecc"]
 	path = premake-ecc
