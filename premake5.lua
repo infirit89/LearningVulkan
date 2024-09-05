@@ -1,3 +1,6 @@
+require "export-compile-commands"
+require "premake-ecc/ecc"
+
 workspace "LearningVulkan"
 
     startproject "LearningVulkan"

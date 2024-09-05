@@ -161,7 +161,7 @@ namespace LearningVulkan
 
 		CreateGraphicsPipeline();
 		AddCube();
-		AddCube(glm::translate(glm::mat4(1.0f), glm::vec3(3.0f, 0.0f, 0.0f)));
+		AddCube(glm::translate(glm::mat4(1.0f), glm::vec3(1.0f, 0.0f, 0.0f)));
 
 		CreateVertexBuffer();
 		CreateIndexBuffer();

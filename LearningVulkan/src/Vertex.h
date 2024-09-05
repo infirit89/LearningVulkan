@@ -37,4 +37,9 @@ namespace LearningVulkan
 		glm::mat4 Projection;
 		glm::mat4 View;
 	};
+
+	struct LightData
+	{
+		glm::vec3 LightColor;
+	};
 }
