@@ -1,13 +1,13 @@
-[submodule "Vendor/GLFW"]
-	path = Vendor/GLFW
+[submodule "vendor/GLFW"]
+	path = vendor/GLFW
 	url = https://github.com/infirit89/glfw
-[submodule "Vendor/glm"]
-	path = Vendor/glm
+[submodule "vendor/glm"]
+	path = vendor/glm
 	url = https://github.com/g-truc/glm
 [submodule "optick"]
 	path = optick
 	url = https://github.com/infirit89/optick
-[submodule "Vendor/optick"]
+[submodule "vendor/optick"]
 	path = Vendor/optick
 	url = https://github.com/infirit89/optick
 [submodule "premake-ecc"]
