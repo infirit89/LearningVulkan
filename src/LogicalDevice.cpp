@@ -1,7 +1,9 @@
 #include "LogicalDevice.h"
 #include "PhysicalDevice.h"
+#include "vulkan/vulkan_core.h"
 
 #include <cassert>
+#include <cstdint>
 
 namespace LearningVulkan 
 {
@@ -27,5 +29,15 @@ namespace LearningVulkan
 	void LogicalDevice::WaitIdle() const
 	{
 		vkDeviceWaitIdle(m_LogicalDevice);
+	}
+
+	void LogicalDevice::QueueSubmit(VkQueue queue, uint32_t submitCount, VkSubmitInfo* submitInfos, VkFence fence)
+	{
+        assert(vkQueueSubmit(queue, submitCount, submitInfos, fence) == VK_SUCCESS);
+	}
+
+	void LogicalDevice::QueueWaitIdle(VkQueue queue)
+	{
+        assert(vkQueueWaitIdle(queue) == VK_SUCCESS);
 	}
 }
