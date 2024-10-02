@@ -6,4 +6,3 @@ insert_final_newline = true
 [src/*.{h,cpp}]
 indent_style = space
 indent_size = 4
-

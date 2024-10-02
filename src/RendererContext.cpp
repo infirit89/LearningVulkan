@@ -1,7 +1,9 @@
 #include "RendererContext.h"
+#include "Image.h"
 #include "PhysicalDevice.h"
 #include "VulkanUtils.h"
 #include "Application.h"
+#include "vulkan/vulkan_core.h"
 
 #include <GLFW/glfw3.h>
 
@@ -115,7 +117,6 @@ namespace LearningVulkan
 
     RendererContext::RendererContext(std::string_view applicationName)
     {
-        std::cout << "test";
         CreateVulkanInstance(applicationName);
         SetupDebugMessenger();
         CreateSurface();
@@ -128,7 +129,12 @@ namespace LearningVulkan
 
         glfwSetScrollCallback(window->GetNativeWindow(), MouseScrollCallback);
 
-        m_Swapchain = new Swapchain(m_LogicalDevice, window->GetWidth(), window->GetHeight(), PresentMode::Mailbox);
+        m_Swapchain = new Swapchain(
+            m_LogicalDevice,
+            window->GetWidth(),
+            window->GetHeight(),
+            PresentMode::Mailbox);
+
         CreateDepthResources();
 
         CreateRenderPass();
@@ -144,7 +150,8 @@ namespace LearningVulkan
                 m_DepthImageView,
             };
 
-            Framebuffer* framebuffer = new Framebuffer(m_RenderPass, attachments,
+            Framebuffer* framebuffer = new Framebuffer(
+                m_RenderPass, attachments,
                 extent.width, extent.height);
             m_Framebuffers.push_back(framebuffer);
         }
@@ -153,9 +160,14 @@ namespace LearningVulkan
         for (size_t i = 0; i < m_Swapchain->GetImageViews().size(); ++i)
             CreatePerFrameObjects(i);
 
-        const QueueFamilyIndices& queueFamilyIndices = m_PhysicalDevice->GetQueueFamilyIndices();
-        m_TransientTransferCommandPool = CreateCommandPool(VK_COMMAND_POOL_CREATE_TRANSIENT_BIT, queueFamilyIndices.TransferFamily.value());
-        m_TransientGraphicsCommandPool = CreateCommandPool(VK_COMMAND_POOL_CREATE_TRANSIENT_BIT, queueFamilyIndices.GraphicsFamily.value());
+        const QueueFamilyIndices& queueFamilyIndices =
+            m_PhysicalDevice->GetQueueFamilyIndices();
+        m_TransientTransferCommandPool = CreateCommandPool(
+            VK_COMMAND_POOL_CREATE_TRANSIENT_BIT,
+            queueFamilyIndices.TransferFamily.value());
+        m_TransientGraphicsCommandPool = CreateCommandPool(
+            VK_COMMAND_POOL_CREATE_TRANSIENT_BIT,
+            queueFamilyIndices.GraphicsFamily.value());
 
         CreateTexture();
         CreateCameraDescriptorSetLayout();
@@ -173,29 +185,41 @@ namespace LearningVulkan
 
     RendererContext::~RendererContext()
     {
-        vkDestroyCommandPool(m_LogicalDevice->GetVulkanDevice(), m_TransientTransferCommandPool, nullptr);
-        vkDestroyCommandPool(m_LogicalDevice->GetVulkanDevice(), m_TransientGraphicsCommandPool, nullptr);
+        vkDestroyCommandPool(m_LogicalDevice->GetVulkanDevice(),
+                             m_TransientTransferCommandPool, nullptr);
+        vkDestroyCommandPool(m_LogicalDevice->GetVulkanDevice(),
+                             m_TransientGraphicsCommandPool, nullptr);
 
         for (const PerFrameData& data : m_PerFrameData)
         {
-            vkDestroySemaphore(m_LogicalDevice->GetVulkanDevice(), data.SwapchainImageAcquireSemaphore, nullptr);
-            vkDestroySemaphore(m_LogicalDevice->GetVulkanDevice(), data.QueueReadySemaphore, nullptr);
-            vkDestroyFence(m_LogicalDevice->GetVulkanDevice(), data.PresentFence, nullptr);
-            vkFreeCommandBuffers(m_LogicalDevice->GetVulkanDevice(), data.CommandPool, 1, &data.CommandBuffer);
-            vkDestroyCommandPool(m_LogicalDevice->GetVulkanDevice(), data.CommandPool, nullptr);
+            vkDestroySemaphore(m_LogicalDevice->GetVulkanDevice(),
+                               data.SwapchainImageAcquireSemaphore, nullptr);
+            vkDestroySemaphore(m_LogicalDevice->GetVulkanDevice(),
+                               data.QueueReadySemaphore, nullptr);
+            vkDestroyFence(m_LogicalDevice->GetVulkanDevice(),
+                            data.PresentFence, nullptr);
+            vkFreeCommandBuffers(m_LogicalDevice->GetVulkanDevice(),
+                            data.CommandPool, 1, &data.CommandBuffer);
+            vkDestroyCommandPool(m_LogicalDevice->GetVulkanDevice(),
+                            data.CommandPool, nullptr);
             delete data.CameraUniformBuffer;
         }
 
-        vkDestroyPipeline(m_LogicalDevice->GetVulkanDevice(), m_Pipeline, nullptr);
-        vkDestroyPipelineLayout(m_LogicalDevice->GetVulkanDevice(), m_PipelineLayout, nullptr);
+        vkDestroyPipeline(m_LogicalDevice->GetVulkanDevice(),
+                          m_Pipeline, nullptr);
+        vkDestroyPipelineLayout(m_LogicalDevice->GetVulkanDevice(),
+                            m_PipelineLayout, nullptr);
         
         for (const auto& framebuffer : m_Framebuffers)
             delete framebuffer;
 
-        vkDestroyRenderPass(m_LogicalDevice->GetVulkanDevice(), m_RenderPass, nullptr);
+        vkDestroyRenderPass(m_LogicalDevice->GetVulkanDevice(),
+                            m_RenderPass, nullptr);
 
-        vkDestroyDescriptorPool(m_LogicalDevice->GetVulkanDevice(), m_DescriptorPool, nullptr);
-        vkDestroyDescriptorSetLayout(m_LogicalDevice->GetVulkanDevice(), m_CameraDescriptorSetLayout, nullptr);
+        vkDestroyDescriptorPool(m_LogicalDevice->GetVulkanDevice(),
+                                m_DescriptorPool, nullptr);
+        vkDestroyDescriptorSetLayout(m_LogicalDevice->GetVulkanDevice(),
+                                     m_CameraDescriptorSetLayout, nullptr);
 
         DestroyDepthResources();
         delete m_Swapchain;
@@ -204,11 +228,9 @@ namespace LearningVulkan
 
         delete m_IndexBuffer;
 
-        vkDestroySampler(m_LogicalDevice->GetVulkanDevice(), m_TestImageSampler, nullptr);
-        vkDestroyImageView(m_LogicalDevice->GetVulkanDevice(), m_TestImageView, nullptr);
-        vkDestroyImage(m_LogicalDevice->GetVulkanDevice(), m_TestImage, nullptr);
-        vkFreeMemory(m_LogicalDevice->GetVulkanDevice(), m_TestImageMemory, nullptr);
-
+        vkDestroySampler(m_LogicalDevice->GetVulkanDevice(),
+                         m_TestImageSampler, nullptr);
+        delete m_TestImage;
         delete m_LogicalDevice;
 
         vkDestroySurfaceKHR(m_Instance, m_Surface, nullptr);
@@ -239,7 +261,8 @@ namespace LearningVulkan
         }
     }
 
-    void RendererContext::CreateVulkanInstance(std::string_view applicationName)
+    void RendererContext::CreateVulkanInstance(
+        std::string_view applicationName)
     {
         VkApplicationInfo applicationInfo{};
         applicationInfo.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
@@ -253,8 +276,10 @@ namespace LearningVulkan
 
         // get the required instance extensions
         uint32_t extensionCount = 0;
-        const char** requiredExtensions = glfwGetRequiredInstanceExtensions(&extensionCount);
-        std::vector<const char*> extensions(requiredExtensions, requiredExtensions + extensionCount);
+        const char** requiredExtensions = 
+            glfwGetRequiredInstanceExtensions(&extensionCount);
+        std::vector<const char*> extensions(
+            requiredExtensions, requiredExtensions + extensionCount);
 
         extensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
 
@@ -282,7 +307,8 @@ namespace LearningVulkan
         std::vector<VkLayerProperties> supportedLayers(layerCount);
         vkEnumerateInstanceLayerProperties(&layerCount, supportedLayers.data());
 
-        std::set<std::string> requiredLayers(VulkanUtils::Layers.begin(), VulkanUtils::Layers.end());
+        std::set<std::string> requiredLayers(
+            VulkanUtils::Layers.begin(), VulkanUtils::Layers.end());
 
         for (const auto& layer : supportedLayers)
             requiredLayers.erase(layer.layerName);
@@ -294,13 +320,16 @@ namespace LearningVulkan
     {
         VkDebugUtilsMessengerCreateInfoEXT debugMessengerCreateInfo{};
         SetupDebugUtilsMessengerCreateInfo(debugMessengerCreateInfo);
-        assert(CreateDebugUtilsMessanger(m_Instance, &debugMessengerCreateInfo, nullptr, &m_DebugMessenger) == VK_SUCCESS);
+        assert(CreateDebugUtilsMessanger(m_Instance,
+                                 &debugMessengerCreateInfo,
+                                 nullptr, &m_DebugMessenger) == VK_SUCCESS);
     }
 
     void RendererContext::CreateSurface()
     {
         const Window* window = Application::Get()->GetWindow();
-        assert(glfwCreateWindowSurface(m_Instance, window->GetNativeWindow(), nullptr, &m_Surface) == VK_SUCCESS);
+        assert(glfwCreateWindowSurface(m_Instance, window->GetNativeWindow(),
+                                       nullptr, &m_Surface) == VK_SUCCESS);
     }
 
     void RendererContext::CreateRenderPass()
@@ -319,7 +348,8 @@ namespace LearningVulkan
         depthAttachment.format = m_DepthFormat;
         depthAttachment.samples = VK_SAMPLE_COUNT_1_BIT;
         depthAttachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-        depthAttachment.finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+        depthAttachment.finalLayout = 
+            VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
         depthAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
         depthAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
         depthAttachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
@@ -331,7 +361,8 @@ namespace LearningVulkan
 
         VkAttachmentReference depthAttachmentRef;
         depthAttachmentRef.attachment = 1;
-        depthAttachmentRef.layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+        depthAttachmentRef.layout =
+            VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
 
         VkSubpassDescription subpassDescription{};
         subpassDescription.colorAttachmentCount = 1;
@@ -353,53 +384,73 @@ namespace LearningVulkan
         VkSubpassDependency subpassDependency{};
         subpassDependency.srcSubpass = VK_SUBPASS_EXTERNAL;
         subpassDependency.dstSubpass = 0;
-        subpassDependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
+        subpassDependency.srcStageMask =
+            VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT |
+            VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
         subpassDependency.srcAccessMask = 0;
-        subpassDependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
-        subpassDependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+        subpassDependency.dstStageMask =
+            VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT |
+            VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
+        subpassDependency.dstAccessMask =
+            VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT |
+            VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
 
         renderPassCreateInfo.dependencyCount = 1;
         renderPassCreateInfo.pDependencies = &subpassDependency;
 
-        assert(vkCreateRenderPass(m_LogicalDevice->GetVulkanDevice(), &renderPassCreateInfo, nullptr, &m_RenderPass) == VK_SUCCESS);
+        assert(vkCreateRenderPass(m_LogicalDevice->GetVulkanDevice(),
+                                &renderPassCreateInfo, nullptr,
+                                &m_RenderPass) == VK_SUCCESS);
     }
 
-    VkCommandPool RendererContext::CreateCommandPool(VkCommandPoolCreateFlags commandPoolFlags, uint32_t queueFamilyIndex) const
+    VkCommandPool RendererContext::CreateCommandPool(
+        VkCommandPoolCreateFlags commandPoolFlags,
+        uint32_t queueFamilyIndex) const
     {
         VkCommandPoolCreateInfo commandPoolCreateInfo{};
-        commandPoolCreateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
+        commandPoolCreateInfo.sType =
+            VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
         commandPoolCreateInfo.flags = commandPoolFlags;
         commandPoolCreateInfo.queueFamilyIndex = queueFamilyIndex;
 
         VkCommandPool commandPool;
-        assert(vkCreateCommandPool(m_LogicalDevice->GetVulkanDevice(), &commandPoolCreateInfo, nullptr, &commandPool) == VK_SUCCESS);
+        assert(vkCreateCommandPool(m_LogicalDevice->GetVulkanDevice(),
+                                   &commandPoolCreateInfo, nullptr,
+                                   &commandPool) == VK_SUCCESS);
         return commandPool;
     }
 
-    VkCommandBuffer RendererContext::AllocateCommandBuffer(VkCommandPool commandPool)
+    VkCommandBuffer RendererContext::AllocateCommandBuffer(
+        VkCommandPool commandPool)
     {
         VkCommandBufferAllocateInfo commandBufferAllocateInfo{};
-        commandBufferAllocateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+        commandBufferAllocateInfo.sType =
+            VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
         commandBufferAllocateInfo.commandBufferCount = 1;
         commandBufferAllocateInfo.commandPool = commandPool;
         commandBufferAllocateInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
         
         VkCommandBuffer commandBuffer;
-        assert(vkAllocateCommandBuffers(m_LogicalDevice->GetVulkanDevice(), &commandBufferAllocateInfo, &commandBuffer) == VK_SUCCESS);
+        assert(vkAllocateCommandBuffers(m_LogicalDevice->GetVulkanDevice(),
+                                        &commandBufferAllocateInfo,
+                                        &commandBuffer) == VK_SUCCESS);
         return commandBuffer;
     }
 
-    void RendererContext::RecordCommandBuffer(uint32_t imageIndex, VkCommandBuffer commandBuffer)
+    void RendererContext::RecordCommandBuffer(
+        uint32_t imageIndex, VkCommandBuffer commandBuffer)
     {
         
         VkCommandBufferBeginInfo commandBufferInfo{};
         commandBufferInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
 
-        assert(vkBeginCommandBuffer(commandBuffer, &commandBufferInfo) == VK_SUCCESS);
+        assert(vkBeginCommandBuffer(commandBuffer,
+                                    &commandBufferInfo) == VK_SUCCESS);
 
         VkRenderPassBeginInfo renderPassInfo{};
         renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
-        renderPassInfo.framebuffer = m_Framebuffers.at(imageIndex)->GetVulkanFramebuffer();
+        renderPassInfo.framebuffer = m_Framebuffers.at(imageIndex)
+                                        ->GetVulkanFramebuffer();
         renderPassInfo.renderPass = m_RenderPass;
         renderPassInfo.renderArea.extent = m_Swapchain->GetExtent();
         renderPassInfo.renderArea.offset = { 0, 0 };
@@ -410,14 +461,18 @@ namespace LearningVulkan
         renderPassInfo.clearValueCount = clearColor.size();
         renderPassInfo.pClearValues = clearColor.data();
 
-        vkCmdBeginRenderPass(commandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
-        vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_Pipeline);
+        vkCmdBeginRenderPass(commandBuffer, &renderPassInfo,
+                             VK_SUBPASS_CONTENTS_INLINE);
+        vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
+                          m_Pipeline);
 
         VkDeviceSize deviceSizes[] = { 0 };
         VkBuffer vertexBuffer = m_VertexBuffer->GetVulkanBuffer();
-        vkCmdBindVertexBuffers(commandBuffer, 0, 1, &vertexBuffer, deviceSizes);
+        vkCmdBindVertexBuffers(commandBuffer, 0, 1,
+                               &vertexBuffer, deviceSizes);
 
-        vkCmdBindIndexBuffer(commandBuffer, m_IndexBuffer->GetVulkanBuffer(), 0, VK_INDEX_TYPE_UINT32);
+        vkCmdBindIndexBuffer(commandBuffer, m_IndexBuffer->GetVulkanBuffer(),
+                             0, VK_INDEX_TYPE_UINT32);
 
         VkViewport viewport;
         viewport.x = 0;
@@ -434,7 +489,9 @@ namespace LearningVulkan
         vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
 
         //vkCmdDraw(commandBuffer, m_Vertices.size(), 1, 0, 0);
-        vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_PipelineLayout, 0, 1, &m_DescriptorSets.at(imageIndex), 0, nullptr);
+        vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
+                                m_PipelineLayout, 0, 1,
+                                &m_DescriptorSets.at(imageIndex), 0, nullptr);
 
         vkCmdDrawIndexed(commandBuffer, m_Indices.size(), 1, 0, 0, 0);
 
@@ -442,33 +499,48 @@ namespace LearningVulkan
         vkEndCommandBuffer(commandBuffer);
     }
 
-    void RendererContext::CreateSyncObjects(VkSemaphore& swapchainImageAcquireSemaphore, VkSemaphore& queueReadySemaphore, VkFence& presentFence)
+    void RendererContext::CreateSyncObjects(
+        VkSemaphore& swapchainImageAcquireSemaphore,
+        VkSemaphore& queueReadySemaphore, VkFence& presentFence)
     {
         VkSemaphoreCreateInfo semaphoreCreateInfo{};
         semaphoreCreateInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
-        assert(vkCreateSemaphore(m_LogicalDevice->GetVulkanDevice(), &semaphoreCreateInfo, nullptr, &swapchainImageAcquireSemaphore) == VK_SUCCESS);
+        assert(vkCreateSemaphore(m_LogicalDevice->GetVulkanDevice(),
+                                 &semaphoreCreateInfo, nullptr,
+                                 &swapchainImageAcquireSemaphore) == VK_SUCCESS);
 
-        assert(vkCreateSemaphore(m_LogicalDevice->GetVulkanDevice(), &semaphoreCreateInfo, nullptr, &queueReadySemaphore) == VK_SUCCESS);
+        assert(vkCreateSemaphore(m_LogicalDevice->GetVulkanDevice(),
+                                 &semaphoreCreateInfo, nullptr,
+                                 &queueReadySemaphore) == VK_SUCCESS);
 
         VkFenceCreateInfo fenceCreateInfo{};
         fenceCreateInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
         fenceCreateInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
 
-        assert(vkCreateFence(m_LogicalDevice->GetVulkanDevice(), &fenceCreateInfo, nullptr, &presentFence) == VK_SUCCESS);
+        assert(vkCreateFence(m_LogicalDevice->GetVulkanDevice(),
+                             &fenceCreateInfo, nullptr,
+                             &presentFence) == VK_SUCCESS);
     }
 
     void RendererContext::CreatePerFrameObjects(uint32_t frameIndex)
     {
         PerFrameData& data = m_PerFrameData.at(frameIndex);
-        const QueueFamilyIndices& queueFamilyIndices = m_PhysicalDevice->GetQueueFamilyIndices();
-        data.CommandPool = CreateCommandPool(VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT, queueFamilyIndices.GraphicsFamily.value());
+        const QueueFamilyIndices& queueFamilyIndices =
+                                    m_PhysicalDevice->GetQueueFamilyIndices();
+        data.CommandPool = CreateCommandPool(
+            VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT,
+            queueFamilyIndices.GraphicsFamily.value());
         data.CommandBuffer = AllocateCommandBuffer(data.CommandPool);
         CreateSyncObjects(
             data.SwapchainImageAcquireSemaphore,
             data.QueueReadySemaphore,
             data.PresentFence);
 
-        data.CameraUniformBuffer = new GPUBuffer(VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, sizeof CameraData, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+        data.CameraUniformBuffer = new GPUBuffer(
+            VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
+            sizeof(CameraData), 
+            VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
+            VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
 
         data.CameraUniformBufferMemory = data.CameraUniformBuffer->MapMemory();
     }
@@ -476,11 +548,16 @@ namespace LearningVulkan
     void RendererContext::DrawFrame()
     {
         const PerFrameData& currentFrameData = m_PerFrameData.at(m_FrameIndex);
-        assert(vkWaitForFences(m_LogicalDevice->GetVulkanDevice(), 1, &currentFrameData.PresentFence, VK_TRUE, UINT64_MAX) == VK_SUCCESS);
-        vkResetFences(m_LogicalDevice->GetVulkanDevice(), 1, &currentFrameData.PresentFence);
+        assert(vkWaitForFences(m_LogicalDevice->GetVulkanDevice(), 1,
+                               &currentFrameData.PresentFence,
+                               VK_TRUE, UINT64_MAX) == VK_SUCCESS);
+        vkResetFences(m_LogicalDevice->GetVulkanDevice(), 1,
+                      &currentFrameData.PresentFence);
 
         uint32_t imageIndex;
-        m_Swapchain->AcquireNextImage(currentFrameData.SwapchainImageAcquireSemaphore, imageIndex);
+        m_Swapchain->AcquireNextImage(
+                    currentFrameData.SwapchainImageAcquireSemaphore,
+                    imageIndex);
 
         vkResetCommandBuffer(currentFrameData.CommandBuffer, 0);
 
@@ -495,11 +572,16 @@ namespace LearningVulkan
         submitInfo.signalSemaphoreCount = 1;
         submitInfo.pSignalSemaphores = &currentFrameData.QueueReadySemaphore;
         submitInfo.waitSemaphoreCount = 1;
-        submitInfo.pWaitSemaphores = &currentFrameData.SwapchainImageAcquireSemaphore;
-        VkPipelineStageFlags waitStages = { VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };
+        submitInfo.pWaitSemaphores = 
+                            &currentFrameData.SwapchainImageAcquireSemaphore;
+
+        VkPipelineStageFlags waitStages = 
+                            { VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };
         submitInfo.pWaitDstStageMask = &waitStages;
 
-        assert(vkQueueSubmit(m_LogicalDevice->GetGraphicsQueue(), 1, &submitInfo, currentFrameData.PresentFence) == VK_SUCCESS);
+        assert(vkQueueSubmit(m_LogicalDevice->GetGraphicsQueue(), 1,
+                             &submitInfo,
+                             currentFrameData.PresentFence) == VK_SUCCESS);
         m_Swapchain->Present(currentFrameData.QueueReadySemaphore, imageIndex);
 
         m_FrameIndex = (m_FrameIndex + 1) % m_PerFrameData.size();
@@ -508,24 +590,29 @@ namespace LearningVulkan
     void RendererContext::CreateGraphicsPipeline()
     {
         VkGraphicsPipelineCreateInfo graphicsPipelineCreateInfo{};
-        graphicsPipelineCreateInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
+        graphicsPipelineCreateInfo.sType =
+                            VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
         graphicsPipelineCreateInfo.renderPass = m_RenderPass;
 
-        std::vector<char> vertexShaderData = ReadShaderFile("assets/shaders/bin/BasicVert.spv");
-        std::vector<char> fragmentShaderData = ReadShaderFile("assets/shaders/bin/BasicFrag.spv");
+        std::vector<char> vertexShaderData = ReadShaderFile(
+                                        "assets/shaders/bin/BasicVert.spv");
+        std::vector<char> fragmentShaderData = ReadShaderFile(
+                                        "assets/shaders/bin/BasicFrag.spv");
 
         VkShaderModule vertexShaderModule = CreateShader(vertexShaderData);
         VkShaderModule fragmentShaderModule = CreateShader(fragmentShaderData);
 
 #pragma region Shader Stages
             VkPipelineShaderStageCreateInfo vertexShaderStageCreateInfo{};
-            vertexShaderStageCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+            vertexShaderStageCreateInfo.sType = 
+                        VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
             vertexShaderStageCreateInfo.module = vertexShaderModule;
             vertexShaderStageCreateInfo.stage = VK_SHADER_STAGE_VERTEX_BIT;
             vertexShaderStageCreateInfo.pName = "main";
 
             VkPipelineShaderStageCreateInfo fragmentShaderStageCreateInfo{};
-            fragmentShaderStageCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+            fragmentShaderStageCreateInfo.sType =
+                        VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
             fragmentShaderStageCreateInfo.module = fragmentShaderModule;
             fragmentShaderStageCreateInfo.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
             fragmentShaderStageCreateInfo.pName = "main";
@@ -543,25 +630,35 @@ namespace LearningVulkan
 
 #pragma region Vertex Input State
             VkPipelineVertexInputStateCreateInfo vertexInputCreateInfo{};
-            vertexInputCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
+            vertexInputCreateInfo.sType =
+                    VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
 
             vertexInputCreateInfo.vertexBindingDescriptionCount = 1;
-            VkVertexInputBindingDescription vertexBindingDescription = Vertex::GetBindingDescription();
-            vertexInputCreateInfo.pVertexBindingDescriptions = &vertexBindingDescription;
+            VkVertexInputBindingDescription vertexBindingDescription =
+                                            Vertex::GetBindingDescription();
+            vertexInputCreateInfo.pVertexBindingDescriptions = 
+                                                    &vertexBindingDescription;
 
-            std::array vertexAttributeDescription = Vertex::GetAttributeDescriptions();
-            vertexInputCreateInfo.vertexAttributeDescriptionCount = vertexAttributeDescription.size();
-            vertexInputCreateInfo.pVertexAttributeDescriptions = vertexAttributeDescription.data();
+            std::array vertexAttributeDescription = 
+                                            Vertex::GetAttributeDescriptions();
+            vertexInputCreateInfo.vertexAttributeDescriptionCount =
+                                            vertexAttributeDescription.size();
+            vertexInputCreateInfo.pVertexAttributeDescriptions =
+                                            vertexAttributeDescription.data();
 
-            graphicsPipelineCreateInfo.pVertexInputState = &vertexInputCreateInfo;
+            graphicsPipelineCreateInfo.pVertexInputState =
+                                                        &vertexInputCreateInfo;
 #pragma endregion
 
 #pragma region Input Assembly State
             VkPipelineInputAssemblyStateCreateInfo inputAssemblyStateCreateInfo{};
-            inputAssemblyStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
-            inputAssemblyStateCreateInfo.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+            inputAssemblyStateCreateInfo.sType = 
+                VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
+            inputAssemblyStateCreateInfo.topology =
+                                        VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
 
-            graphicsPipelineCreateInfo.pInputAssemblyState = &inputAssemblyStateCreateInfo;
+            graphicsPipelineCreateInfo.pInputAssemblyState =
+                                                &inputAssemblyStateCreateInfo;
 #pragma endregion
 
 #pragma region Dynamic States
@@ -572,7 +669,8 @@ namespace LearningVulkan
             };
 
             VkPipelineDynamicStateCreateInfo dynamicStateCreateInfo{};
-            dynamicStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
+            dynamicStateCreateInfo.sType = 
+                        VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
             dynamicStateCreateInfo.dynamicStateCount = dynamicStates.size();
             dynamicStateCreateInfo.pDynamicStates = dynamicStates.data();
             
@@ -581,20 +679,26 @@ namespace LearningVulkan
 
 #pragma region Viewport State
             VkPipelineViewportStateCreateInfo viewportStateCreateInfo{};
-            viewportStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
-            // not setting the actual viewport and scissor states just how many there will be
+            viewportStateCreateInfo.sType = 
+                        VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
+            // not setting the actual viewport and scissor states just how many 
+            // there will be
             // that's because both are dynamic and will be specified later
             viewportStateCreateInfo.scissorCount = 1;
             viewportStateCreateInfo.viewportCount = 1;
 
-            graphicsPipelineCreateInfo.pViewportState = &viewportStateCreateInfo;
+            graphicsPipelineCreateInfo.pViewportState = 
+                                                    &viewportStateCreateInfo;
 #pragma endregion
 
 #pragma region Rasterization State
             VkPipelineRasterizationStateCreateInfo rasterizationStateCreateInfo{};
-            rasterizationStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
+            rasterizationStateCreateInfo.sType = 
+                    VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
 
-            // if true, then the fragments outside the depth range (the near and far planes) will be clamped, else they will be discarded
+            // if true, then the fragments outside the depth range 
+            // (the near and far planes) will be clamped, 
+            // else they will be discarded
             // using this requires a gpu feature
             rasterizationStateCreateInfo.depthClampEnable = VK_FALSE;
             rasterizationStateCreateInfo.rasterizerDiscardEnable = VK_FALSE;
@@ -605,15 +709,19 @@ namespace LearningVulkan
             rasterizationStateCreateInfo.frontFace = VK_FRONT_FACE_CLOCKWISE;
             rasterizationStateCreateInfo.depthBiasEnable = VK_FALSE;
 
-            graphicsPipelineCreateInfo.pRasterizationState = &rasterizationStateCreateInfo;
+            graphicsPipelineCreateInfo.pRasterizationState = 
+                                                &rasterizationStateCreateInfo;
 #pragma endregion
 
 #pragma region Multisample State
             VkPipelineMultisampleStateCreateInfo multisampleStateCreateInfo{};
-            multisampleStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
-            multisampleStateCreateInfo.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
+            multisampleStateCreateInfo.sType = 
+                    VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
+            multisampleStateCreateInfo.rasterizationSamples = 
+                                                        VK_SAMPLE_COUNT_1_BIT;
 
-            graphicsPipelineCreateInfo.pMultisampleState = &multisampleStateCreateInfo;
+            graphicsPipelineCreateInfo.pMultisampleState = 
+                                                &multisampleStateCreateInfo;
 #pragma endregion
 
 
@@ -642,21 +750,26 @@ namespace LearningVulkan
 
 
             VkPipelineColorBlendStateCreateInfo colorBlendStateCreateInfo{};
-            colorBlendStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
+            colorBlendStateCreateInfo.sType = 
+                    VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
             colorBlendStateCreateInfo.attachmentCount = 1;
             colorBlendStateCreateInfo.pAttachments = &colorBlendAttachmentState;
             colorBlendStateCreateInfo.logicOpEnable = VK_FALSE;
 
-            graphicsPipelineCreateInfo.pColorBlendState = &colorBlendStateCreateInfo;
+            graphicsPipelineCreateInfo.pColorBlendState = 
+                                                    &colorBlendStateCreateInfo;
 #pragma  endregion
 
 #pragma region Pipeline Layout
             VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo{};
-            pipelineLayoutCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+            pipelineLayoutCreateInfo.sType = 
+                                VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
             pipelineLayoutCreateInfo.setLayoutCount = 1;
             pipelineLayoutCreateInfo.pSetLayouts = &m_CameraDescriptorSetLayout;
 
-            assert(vkCreatePipelineLayout(m_LogicalDevice->GetVulkanDevice(), &pipelineLayoutCreateInfo, nullptr, &m_PipelineLayout) == VK_SUCCESS);
+            assert(vkCreatePipelineLayout(m_LogicalDevice->GetVulkanDevice(),
+                                          &pipelineLayoutCreateInfo, nullptr,
+                                          &m_PipelineLayout) == VK_SUCCESS);
 
             graphicsPipelineCreateInfo.layout = m_PipelineLayout;
 #pragma endregion
@@ -668,54 +781,76 @@ namespace LearningVulkan
 
 #pragma region Depth Stencil State
             VkPipelineDepthStencilStateCreateInfo pipelineDepthStencilCreateInfo{};
-            pipelineDepthStencilCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
+            pipelineDepthStencilCreateInfo.sType = 
+                    VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
             pipelineDepthStencilCreateInfo.depthTestEnable = VK_TRUE;
             pipelineDepthStencilCreateInfo.depthWriteEnable = VK_TRUE;
             pipelineDepthStencilCreateInfo.depthCompareOp = VK_COMPARE_OP_LESS;
 
-            graphicsPipelineCreateInfo.pDepthStencilState = &pipelineDepthStencilCreateInfo;
+            graphicsPipelineCreateInfo.pDepthStencilState = 
+                                            &pipelineDepthStencilCreateInfo;
 #pragma endregion
 
-        assert(vkCreateGraphicsPipelines(m_LogicalDevice->GetVulkanDevice(), VK_NULL_HANDLE, 1, &graphicsPipelineCreateInfo, nullptr, &m_Pipeline) == VK_SUCCESS);
+        assert(vkCreateGraphicsPipelines(m_LogicalDevice->GetVulkanDevice(),
+                                         VK_NULL_HANDLE, 1,
+                                         &graphicsPipelineCreateInfo, nullptr,
+                                         &m_Pipeline) == VK_SUCCESS);
 
-        vkDestroyShaderModule(m_LogicalDevice->GetVulkanDevice(), vertexShaderModule, nullptr);
-        vkDestroyShaderModule(m_LogicalDevice->GetVulkanDevice(), fragmentShaderModule, nullptr);
+        vkDestroyShaderModule(m_LogicalDevice->GetVulkanDevice(),
+                              vertexShaderModule, nullptr);
+        vkDestroyShaderModule(m_LogicalDevice->GetVulkanDevice(),
+                              fragmentShaderModule, nullptr);
     }
 
-    VkShaderModule RendererContext::CreateShader(const std::vector<char>& shaderData)
+    VkShaderModule RendererContext::CreateShader(
+        const std::vector<char>& shaderData)
     {
         VkShaderModuleCreateInfo shaderModuleCreateInfo{};
-        shaderModuleCreateInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
+        shaderModuleCreateInfo.sType = 
+                                VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
         shaderModuleCreateInfo.codeSize = shaderData.size();
-        shaderModuleCreateInfo.pCode = reinterpret_cast<const uint32_t*>(shaderData.data());
+        shaderModuleCreateInfo.pCode = reinterpret_cast<const uint32_t*>(
+                                                            shaderData.data());
 
         VkShaderModule shaderModule;
-        assert(vkCreateShaderModule(m_LogicalDevice->GetVulkanDevice(), &shaderModuleCreateInfo, nullptr, &shaderModule) == VK_SUCCESS);
+        assert(vkCreateShaderModule(m_LogicalDevice->GetVulkanDevice(),
+                                    &shaderModuleCreateInfo, nullptr,
+                                    &shaderModule) == VK_SUCCESS);
         return shaderModule;
     }
 
     void RendererContext::CreateVertexBuffer()
     {
-        VkDeviceSize bufferSize = sizeof Vertex * m_Vertices.size();
-        GPUBuffer stagingBuffer(VK_BUFFER_USAGE_TRANSFER_SRC_BIT, bufferSize, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+        VkDeviceSize bufferSize = sizeof(Vertex) * m_Vertices.size();
+        GPUBuffer stagingBuffer(VK_BUFFER_USAGE_TRANSFER_SRC_BIT, bufferSize,
+                                VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
+                                VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
         
         void* data = stagingBuffer.MapMemory();
         memcpy(data, m_Vertices.data(), sizeof(Vertex) * m_Vertices.size());
         stagingBuffer.UnmapMemory();
 
-        m_VertexBuffer = new GPUBuffer(VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, bufferSize, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+        m_VertexBuffer = new GPUBuffer(VK_BUFFER_USAGE_TRANSFER_DST_BIT |
+                                       VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
+                                       bufferSize,
+                                       VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 
-        CopyBuffer(stagingBuffer.GetVulkanBuffer(), m_VertexBuffer->GetVulkanBuffer(), bufferSize);
+        CopyBuffer(stagingBuffer.GetVulkanBuffer(),
+                   m_VertexBuffer->GetVulkanBuffer(), bufferSize);
     }
 
-    void RendererContext::CopyBuffer(VkBuffer sourceBuffer, VkBuffer destinationBuffer, VkDeviceSize size)
+    void RendererContext::CopyBuffer(
+        VkBuffer sourceBuffer, VkBuffer destinationBuffer, VkDeviceSize size)
     {
-        VkCommandBuffer copyCommandBuffer = AllocateCommandBuffer(m_TransientTransferCommandPool);
-        BeginCommandBuffer(copyCommandBuffer, VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
+        VkCommandBuffer copyCommandBuffer =
+                        AllocateCommandBuffer(m_TransientTransferCommandPool);
+        BeginCommandBuffer(copyCommandBuffer, 
+                           VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
 
         VkBufferCopy bufferCopy{};
         bufferCopy.size = size;
-        vkCmdCopyBuffer(copyCommandBuffer, sourceBuffer, destinationBuffer, 1, &bufferCopy);
+        vkCmdCopyBuffer(copyCommandBuffer, sourceBuffer, 
+                        destinationBuffer, 1, &bufferCopy);
 
         EndCommandBuffer(copyCommandBuffer);
 
@@ -724,25 +859,34 @@ namespace LearningVulkan
         submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
         submitInfo.commandBufferCount = 1;
         submitInfo.pCommandBuffers = &copyCommandBuffer;
-        assert(vkQueueSubmit(m_LogicalDevice->GetTransferQueue(), 1, &submitInfo, VK_NULL_HANDLE) == VK_SUCCESS);
+        assert(vkQueueSubmit(m_LogicalDevice->GetTransferQueue(), 1,
+                             &submitInfo, VK_NULL_HANDLE) == VK_SUCCESS);
 
         vkQueueWaitIdle(m_LogicalDevice->GetTransferQueue());
 
-        vkFreeCommandBuffers(m_LogicalDevice->GetVulkanDevice(), m_TransientTransferCommandPool, 1, &copyCommandBuffer);
+        vkFreeCommandBuffers(m_LogicalDevice->GetVulkanDevice(),
+                             m_TransientTransferCommandPool, 1,
+                             &copyCommandBuffer);
     }
 
     void RendererContext::CreateIndexBuffer()
     {
-        VkDeviceSize bufferSize = sizeof uint32_t * m_Indices.size();
-        GPUBuffer stagingBuffer(VK_BUFFER_USAGE_TRANSFER_SRC_BIT, bufferSize, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+        VkDeviceSize bufferSize = sizeof(uint32_t) * m_Indices.size();
+        GPUBuffer stagingBuffer(VK_BUFFER_USAGE_TRANSFER_SRC_BIT, bufferSize,
+                                VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
+                                VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
 
         void* data = stagingBuffer.MapMemory();
         memcpy(data, m_Indices.data(), bufferSize);
         stagingBuffer.UnmapMemory();
 
-        m_IndexBuffer = new GPUBuffer(VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT, bufferSize, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+        m_IndexBuffer = new GPUBuffer(VK_BUFFER_USAGE_TRANSFER_DST_BIT |
+                                      VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
+                                      bufferSize,
+                                      VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 
-        CopyBuffer(stagingBuffer.GetVulkanBuffer(), m_IndexBuffer->GetVulkanBuffer(), bufferSize);
+        CopyBuffer(stagingBuffer.GetVulkanBuffer(),
+                   m_IndexBuffer->GetVulkanBuffer(), bufferSize);
     }
 
     void RendererContext::CreateCameraDescriptorSetLayout()
@@ -750,14 +894,17 @@ namespace LearningVulkan
         VkDescriptorSetLayoutBinding descriptorSetLayoutBinding{};
         descriptorSetLayoutBinding.binding = 0;
         descriptorSetLayoutBinding.descriptorCount = 1;
-        descriptorSetLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+        descriptorSetLayoutBinding.descriptorType = 
+                                            VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
         descriptorSetLayoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
 
         VkDescriptorSetLayoutBinding textureDescriptorSetLayoutBinding{};
         textureDescriptorSetLayoutBinding.binding = 1;
         textureDescriptorSetLayoutBinding.descriptorCount = 1;
-        textureDescriptorSetLayoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
-        textureDescriptorSetLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+        textureDescriptorSetLayoutBinding.stageFlags = 
+                                                VK_SHADER_STAGE_FRAGMENT_BIT;
+        textureDescriptorSetLayoutBinding.descriptorType = 
+                                    VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
 
         std::array descriptorSetLayoutBindings = {
             descriptorSetLayoutBinding,
@@ -765,11 +912,17 @@ namespace LearningVulkan
         };
 
         VkDescriptorSetLayoutCreateInfo descriptorSetLayoutCreateInfo{};
-        descriptorSetLayoutCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-        descriptorSetLayoutCreateInfo.bindingCount = descriptorSetLayoutBindings.size();
-        descriptorSetLayoutCreateInfo.pBindings = descriptorSetLayoutBindings.data();
+        descriptorSetLayoutCreateInfo.sType = 
+                        VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+        descriptorSetLayoutCreateInfo.bindingCount = 
+                                            descriptorSetLayoutBindings.size();
+        descriptorSetLayoutCreateInfo.pBindings = 
+                                            descriptorSetLayoutBindings.data();
 
-        assert(vkCreateDescriptorSetLayout(m_LogicalDevice->GetVulkanDevice(), &descriptorSetLayoutCreateInfo, nullptr, &m_CameraDescriptorSetLayout) == VK_SUCCESS);
+        assert(vkCreateDescriptorSetLayout(
+                m_LogicalDevice->GetVulkanDevice(), 
+                &descriptorSetLayoutCreateInfo, nullptr, 
+                &m_CameraDescriptorSetLayout) == VK_SUCCESS);
     }
 
     static glm::vec3 position = { 0.0f, 0.0f, 4.0f };
@@ -780,10 +933,14 @@ namespace LearningVulkan
     static  bool first = true;
     static double pitch = 0.0, yaw = -90.0;
 
-    static glm::mat4 testlookat(glm::vec3 position, glm::vec3 direction, glm::vec3 worldUp)
+    static glm::mat4 testlookat(
+        glm::vec3 position, glm::vec3 direction, glm::vec3 worldUp)
     {
         glm::vec3 front = glm::normalize(position - direction);
-        glm::vec3 right = glm::normalize(glm::cross(direction, glm::normalize(worldUp)));
+        glm::vec3 right = glm::normalize(
+                            glm::cross(direction, 
+                                       glm::normalize(worldUp)));
+
         glm::vec3 up =  glm::normalize(glm::cross(front, right));
         glm::mat4 directionMat = glm::mat4(1.0f);
         directionMat[0][0] = right.x;
@@ -812,9 +969,11 @@ namespace LearningVulkan
         static auto startTime = std::chrono::high_resolution_clock::now();
         auto currentTime = std::chrono::high_resolution_clock::now();
 
-        float time = std::chrono::duration<float>(startTime - currentTime).count();
+        float time = std::chrono::duration<float>(startTime - currentTime)
+                                                                    .count();
 
-        GLFWwindow* window = Application::Get()->GetWindow()->GetNativeWindow();
+        GLFWwindow* window = 
+                            Application::Get()->GetWindow()->GetNativeWindow();
 
         glm::vec3 velocity = {0.0f, 0.0f, 0.0f};
 
@@ -862,9 +1021,11 @@ namespace LearningVulkan
             pitch = -89.0f;
 
         glm::vec3 direction = { 0.0f, 0.0f, 0.0f };
-        direction.x = glm::cos(glm::radians(yaw)) * glm::cos(glm::radians(pitch));
+        direction.x = glm::cos(glm::radians(yaw)) * 
+                                                glm::cos(glm::radians(pitch));
         direction.y = glm::sin(glm::radians(pitch));
-        direction.z = glm::sin(glm::radians(yaw)) * glm::cos(glm::radians(pitch));
+        direction.z = glm::sin(glm::radians(yaw)) * 
+                                                glm::cos(glm::radians(pitch));
         front = glm::normalize(direction);
 
         if (glfwGetKey(window, GLFW_KEY_R))
@@ -880,10 +1041,14 @@ namespace LearningVulkan
 
         cameraData.View = glm::lookAt(position, position + front, up);
         auto swapchainExtent = m_Swapchain->GetExtent();
-        cameraData.Projection = glm::perspective(glm::radians(fov), swapchainExtent.width / (float)swapchainExtent.height, 0.1f, 50.0f);
+        cameraData.Projection = glm::perspective(
+                                    glm::radians(fov), 
+                                    swapchainExtent.width / 
+                                    (float)swapchainExtent.height, 
+                                    0.1f, 50.0f);
         
         const PerFrameData& data = m_PerFrameData.at(frameIndex);
-        memcpy(data.CameraUniformBufferMemory, &cameraData, sizeof CameraData);
+        memcpy(data.CameraUniformBufferMemory, &cameraData, sizeof(CameraData));
     }
 
     void RendererContext::CreateDescriptorPool()
@@ -893,7 +1058,8 @@ namespace LearningVulkan
         descriptorPoolSize.descriptorCount = m_PerFrameData.size();
 
         VkDescriptorPoolSize textureDescriptorPoolSize;
-        textureDescriptorPoolSize.type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+        textureDescriptorPoolSize.type = 
+                                    VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
         textureDescriptorPoolSize.descriptorCount = m_PerFrameData.size();
 
         std::array descriptorPoolSizes = {
@@ -902,39 +1068,50 @@ namespace LearningVulkan
         };
 
         VkDescriptorPoolCreateInfo descriptorPoolCreateInfo{};
-        descriptorPoolCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+        descriptorPoolCreateInfo.sType = 
+                                VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
         descriptorPoolCreateInfo.poolSizeCount = descriptorPoolSizes.size();
         descriptorPoolCreateInfo.pPoolSizes = descriptorPoolSizes.data();
         descriptorPoolCreateInfo.maxSets = m_PerFrameData.size();
 
-        assert(vkCreateDescriptorPool(m_LogicalDevice->GetVulkanDevice(), &descriptorPoolCreateInfo, nullptr, &m_DescriptorPool) == VK_SUCCESS);
+        assert(vkCreateDescriptorPool(m_LogicalDevice->GetVulkanDevice(), 
+                                      &descriptorPoolCreateInfo, 
+                                      nullptr, 
+                                      &m_DescriptorPool) == VK_SUCCESS);
 
         
     }
 
     void RendererContext::CreateDescriptorSets()
     {
-        std::vector descriptorSetLayouts(m_PerFrameData.size(), m_CameraDescriptorSetLayout);
+        std::vector descriptorSetLayouts(m_PerFrameData.size(), 
+                                         m_CameraDescriptorSetLayout);
+
         VkDescriptorSetAllocateInfo descriptorSetAllocateInfo{};
-        descriptorSetAllocateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+        descriptorSetAllocateInfo.sType = 
+                                VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
         descriptorSetAllocateInfo.descriptorPool = m_DescriptorPool;
-        descriptorSetAllocateInfo.descriptorSetCount = descriptorSetLayouts.size();
+        descriptorSetAllocateInfo.descriptorSetCount = 
+                                                descriptorSetLayouts.size();
         descriptorSetAllocateInfo.pSetLayouts = descriptorSetLayouts.data();
 
         m_DescriptorSets.resize(m_PerFrameData.size());
-        assert(vkAllocateDescriptorSets(m_LogicalDevice->GetVulkanDevice(), &descriptorSetAllocateInfo, m_DescriptorSets.data()) == VK_SUCCESS);
+        assert(vkAllocateDescriptorSets(m_LogicalDevice->GetVulkanDevice(), 
+                                        &descriptorSetAllocateInfo, 
+                                        m_DescriptorSets.data()) == VK_SUCCESS);
 
         for (size_t i = 0; i < m_PerFrameData.size(); i++)
         {
             const PerFrameData& perframeData = m_PerFrameData.at(i);
             VkDescriptorBufferInfo bufferInfo{};
-            bufferInfo.buffer = perframeData.CameraUniformBuffer->GetVulkanBuffer();
-            bufferInfo.range = sizeof CameraData;
+            bufferInfo.buffer = 
+                            perframeData.CameraUniformBuffer->GetVulkanBuffer();
+            bufferInfo.range = sizeof(CameraData);
             bufferInfo.offset = 0;
 
             VkDescriptorImageInfo imageInfo{};
             imageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-            imageInfo.imageView = m_TestImageView;
+            imageInfo.imageView = m_TestImage->GetVulkanImageView();
             imageInfo.sampler = m_TestImageSampler;
 
             std::array<VkWriteDescriptorSet, 2> writeDescriptorSets{};
@@ -945,36 +1122,44 @@ namespace LearningVulkan
             writeDescriptorSet.dstBinding = 0;
             writeDescriptorSet.dstArrayElement = 0;
 
-            writeDescriptorSet.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+            writeDescriptorSet.descriptorType = 
+                                            VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
             writeDescriptorSet.descriptorCount = 1;
             writeDescriptorSet.pBufferInfo = &bufferInfo;
             writeDescriptorSets[0] = writeDescriptorSet;
 
             VkWriteDescriptorSet textureWriteDescriptorSet{};
-            textureWriteDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+            textureWriteDescriptorSet.sType = 
+                                        VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
             textureWriteDescriptorSet.dstSet = m_DescriptorSets.at(i);
             textureWriteDescriptorSet.dstBinding = 1;
             textureWriteDescriptorSet.dstArrayElement = 0;
-            textureWriteDescriptorSet.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+            textureWriteDescriptorSet.descriptorType = 
+                                    VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
             textureWriteDescriptorSet.descriptorCount = 1;
             textureWriteDescriptorSet.pImageInfo = &imageInfo;
             writeDescriptorSets[1] = textureWriteDescriptorSet;
 
 
-            vkUpdateDescriptorSets(m_LogicalDevice->GetVulkanDevice(), writeDescriptorSets.size(), writeDescriptorSets.data(), 0, nullptr);
+            vkUpdateDescriptorSets(m_LogicalDevice->GetVulkanDevice(), 
+                                   writeDescriptorSets.size(), 
+                                   writeDescriptorSets.data(), 0, nullptr);
         }
     }
 
     void RendererContext::CreateTexture()
     {
         int width, height, channels;
-        stbi_uc* imageData = stbi_load("assets/test.png", &width, &height, &channels, STBI_rgb_alpha);
+        stbi_uc* imageData = stbi_load("assets/test.png", &width, &height, 
+                                       &channels, STBI_rgb_alpha);
 
         assert(imageData != nullptr);
 
         VkDeviceSize imageSize = width * height * 4;
 
-        GPUBuffer stagingBuffer(VK_BUFFER_USAGE_TRANSFER_SRC_BIT, imageSize, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+        GPUBuffer stagingBuffer(VK_BUFFER_USAGE_TRANSFER_SRC_BIT, imageSize, 
+                                VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
+                                VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
 
         void* data = stagingBuffer.MapMemory();
         memcpy(data, imageData, imageSize);
@@ -982,16 +1167,20 @@ namespace LearningVulkan
 
         stbi_image_free(imageData);
 
-        CreateImage(width, height, 
-            VK_FORMAT_R8G8B8A8_SRGB, 
-            VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, 
-            VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, m_TestImage, m_TestImageMemory);
+        ImageCreateInfo imageCreateInfo{};
+        imageCreateInfo.Width = width;
+        imageCreateInfo.Height = height;
+        imageCreateInfo.Format = VK_FORMAT_R8G8B8A8_SRGB;
+        imageCreateInfo.Tiling = VK_IMAGE_TILING_OPTIMAL;
+        imageCreateInfo.Usage = VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
+        imageCreateInfo.MemoryProperties = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
+        imageCreateInfo.AspectFlags = VK_IMAGE_ASPECT_COLOR_BIT;
 
-        TransitionImageLayout(m_TestImage, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
-        CopyBufferToImage(stagingBuffer.GetVulkanBuffer(), m_TestImage, width, height);
-        TransitionImageLayout(m_TestImage, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+        m_TestImage = new Image(imageCreateInfo);
+        m_TestImage->TransitionLayout(VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+        CopyBufferToImage(stagingBuffer.GetVulkanBuffer(), m_TestImage->GetVulkanImage(), width, height);
+        m_TestImage->TransitionLayout(VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
 
-        CreateImageView(m_TestImage, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_ASPECT_COLOR_BIT, m_TestImageView);
         CreateImageSampler();
     }
 

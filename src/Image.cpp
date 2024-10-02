@@ -6,13 +6,17 @@
 #include <vulkan/vulkan.h>
 
 namespace LearningVulkan {
-	Image::Image(uint32_t width, uint32_t height,
-	      VkFormat format, VkImageTiling imageTiling,
-	      VkImageUsageFlags imageUsage,
-	      VkMemoryPropertyFlags memoryProperties)
-		: m_Width(width), m_Height(height)
+    Image::Image(const ImageCreateInfo& imageCreateInfo)
+		: m_Width(imageCreateInfo.Width), 
+        m_Height(imageCreateInfo.Height),
+        m_Format(imageCreateInfo.Format),
+        m_CurrentLayout(VK_IMAGE_LAYOUT_UNDEFINED)
 	{
-		Create(width, height, format, imageTiling, imageUsage, memoryProperties);
+		CreateImage(m_Width, m_Height, m_Format, 
+              imageCreateInfo.Tiling, imageCreateInfo.Usage,
+              imageCreateInfo.MemoryProperties);
+
+        CreateView(m_Format, imageCreateInfo.AspectFlags);
 	}
 
 	Image::~Image()
@@ -94,7 +98,7 @@ namespace LearningVulkan {
 		submitInfo.commandBufferCount = 1;
 		submitInfo.pCommandBuffers = &commandBuffer;
 		
-        VkQueue transitionQueue = VK_NULL_HANDLE;
+        VkQueue transitionQueue;
 		if(newLayout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL)
             transitionQueue = logicalDevice->GetTransferQueue();
 		else
@@ -104,9 +108,11 @@ namespace LearningVulkan {
         logicalDevice->QueueWaitIdle(transitionQueue);
 
         vkFreeCommandBuffers(logicalDevice->GetVulkanDevice(), transientCommandPool, 1, &commandBuffer);
+
+        m_CurrentLayout = newLayout;
 	}
 
-	void Image::Create(uint32_t width, uint32_t height, 
+	void Image::CreateImage(uint32_t width, uint32_t height, 
 		VkFormat format, VkImageTiling imageTiling,
 		VkImageUsageFlags imageUsage,
 		VkMemoryPropertyFlags memoryProperties) 
@@ -168,5 +174,23 @@ namespace LearningVulkan {
 		assert(vkBindImageMemory(logicalDevice->GetVulkanDevice(),
 			m_Image, m_ImageMemory, 0) == VK_SUCCESS);
 	}
+
+    void Image::CreateView(VkFormat imageFormat, VkImageAspectFlags imageAspect)
+    {
+        VkImageViewCreateInfo imageViewCreateInfo{};
+        imageViewCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+        imageViewCreateInfo.image = m_Image;
+        imageViewCreateInfo.format = imageFormat;
+        imageViewCreateInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+        imageViewCreateInfo.subresourceRange.aspectMask = imageAspect;
+        imageViewCreateInfo.subresourceRange.layerCount = 1;
+        imageViewCreateInfo.subresourceRange.baseMipLevel = 0;
+        imageViewCreateInfo.subresourceRange.levelCount = 1;
+        imageViewCreateInfo.subresourceRange.baseArrayLayer = 0;
+
+        LogicalDevice* logicalDevice = RendererContext::GetLogicalDevice();
+
+        assert(vkCreateImageView(logicalDevice->GetVulkanDevice(), &imageViewCreateInfo, nullptr, &m_ImageView) == VK_SUCCESS);
+    }
 }
 

@@ -1,5 +1,6 @@
 #pragma once
 
+#include "Image.h"
 #include "PhysicalDevice.h"
 #include "Swapchain.h"
 #include "Framebuffer.h"
@@ -152,9 +153,7 @@ namespace LearningVulkan
         std::vector<uint32_t> m_Indices;
         uint32_t currentIndex = 0;
 
-        VkImage m_TestImage;
-        VkDeviceMemory m_TestImageMemory;
-        VkImageView m_TestImageView;
+        Image* m_TestImage;
         VkSampler m_TestImageSampler;
 
         VkImage m_DepthImage;
