@@ -116,7 +116,6 @@ namespace LearningVulkan
                VkImageView& image_view);
         void CreateImageSampler();
         void CreateDepthResources();
-        void DestroyDepthResources();
 
         void AddCube(
             const glm::mat4& transformMatrix = glm::mat4(1.0f));
@@ -156,10 +155,7 @@ namespace LearningVulkan
         Image* m_TestImage;
         VkSampler m_TestImageSampler;
 
-        VkImage m_DepthImage;
-        VkImageView m_DepthImageView;
-        VkDeviceMemory m_DepthImageMemory;
-        VkFormat m_DepthFormat = VK_FORMAT_UNDEFINED;
+        Image* m_DepthImage;
     };
 }
 

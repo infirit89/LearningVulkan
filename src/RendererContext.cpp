@@ -147,7 +147,7 @@ namespace LearningVulkan
             std::vector attachments
             {
                 m_Swapchain->GetImageViews().at(i),
-                m_DepthImageView,
+                m_DepthImage->GetVulkanImageView(),
             };
 
             Framebuffer* framebuffer = new Framebuffer(
@@ -221,7 +221,7 @@ namespace LearningVulkan
         vkDestroyDescriptorSetLayout(m_LogicalDevice->GetVulkanDevice(),
                                      m_CameraDescriptorSetLayout, nullptr);
 
-        DestroyDepthResources();
+        delete m_DepthImage;
         delete m_Swapchain;
 
         delete m_VertexBuffer;
@@ -246,7 +246,7 @@ namespace LearningVulkan
         m_LogicalDevice->WaitIdle();
 
         m_Swapchain->Resize(width, height);
-        DestroyDepthResources();
+        delete m_DepthImage;
         CreateDepthResources();
 
         uint32_t index = 0;
@@ -255,7 +255,7 @@ namespace LearningVulkan
             std::vector attachments
             {
                 m_Swapchain->GetImageViews().at(index++),
-                m_DepthImageView,
+                m_DepthImage->GetVulkanImageView(),
             };
             framebuffer->Resize(attachments, width, height);
         }
@@ -345,7 +345,7 @@ namespace LearningVulkan
         colorAttachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
 
         VkAttachmentDescription depthAttachment{};
-        depthAttachment.format = m_DepthFormat;
+        depthAttachment.format = m_DepthImage->GetFormat();
         depthAttachment.samples = VK_SAMPLE_COUNT_1_BIT;
         depthAttachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
         depthAttachment.finalLayout = 
@@ -1380,20 +1380,21 @@ namespace LearningVulkan
 
     void RendererContext::CreateDepthResources()
     {
-        std::array desired_depth_formats = {
+        std::array desiredDepthFormats = {
             VK_FORMAT_D32_SFLOAT,
             VK_FORMAT_D32_SFLOAT_S8_UINT,
             VK_FORMAT_D24_UNORM_S8_UINT,
         };
 
-        for (auto desired_depth_format : desired_depth_formats)
+        VkFormat depthFormat = VK_FORMAT_UNDEFINED;
+        for (auto desiredDepthFormat : desiredDepthFormats)
         {
             VkFormatProperties format_properties;
-            vkGetPhysicalDeviceFormatProperties(m_PhysicalDevice->GetPhysicalDevice(), desired_depth_format, &format_properties);
+            vkGetPhysicalDeviceFormatProperties(m_PhysicalDevice->GetPhysicalDevice(), desiredDepthFormat, &format_properties);
 
             if((format_properties.optimalTilingFeatures & VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT) == VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT)
             {
-                m_DepthFormat = desired_depth_format;
+                depthFormat = desiredDepthFormat;
                 break;
             }
             /*else if((format_properties.linearTilingFeatures & VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT) == VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT)
@@ -1403,20 +1404,19 @@ namespace LearningVulkan
             }*/
         }
 
-        assert(m_DepthFormat != VK_FORMAT_UNDEFINED);
+        assert(depthFormat != VK_FORMAT_UNDEFINED);
 
         auto swapchain_extent = m_Swapchain->GetExtent();
-        CreateImage(swapchain_extent.width, swapchain_extent.height, m_DepthFormat,
-            VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, m_DepthImage, m_DepthImageMemory);
-
-        CreateImageView(m_DepthImage, m_DepthFormat, VK_IMAGE_ASPECT_DEPTH_BIT, m_DepthImageView);
-    }
-
-    void RendererContext::DestroyDepthResources()
-    {
-        vkDestroyImageView(m_LogicalDevice->GetVulkanDevice(), m_DepthImageView, nullptr);
-        vkDestroyImage(m_LogicalDevice->GetVulkanDevice(), m_DepthImage, nullptr);
-        vkFreeMemory(m_LogicalDevice->GetVulkanDevice(), m_DepthImageMemory, nullptr);
+        ImageCreateInfo depthImageCreateInfo{};
+        depthImageCreateInfo.Width = swapchain_extent.width;
+        depthImageCreateInfo.Height = swapchain_extent.height;
+        depthImageCreateInfo.Usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
+        depthImageCreateInfo.Tiling = VK_IMAGE_TILING_OPTIMAL;
+        depthImageCreateInfo.Format = depthFormat;
+        depthImageCreateInfo.MemoryProperties = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
+        depthImageCreateInfo.AspectFlags = VK_IMAGE_ASPECT_DEPTH_BIT;
+        
+        m_DepthImage = new Image(depthImageCreateInfo);
     }
 
     void RendererContext::AddCube(const glm::mat4& transformMatrix)

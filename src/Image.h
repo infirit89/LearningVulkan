@@ -39,6 +39,11 @@ namespace LearningVulkan
         { 
             return m_CurrentLayout; 
         }
+
+        VkFormat GetFormat() const 
+        { 
+            return m_Format; 
+        }
         
         void TransitionLayout(VkImageLayout newLayout);
     private:
