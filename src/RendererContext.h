@@ -6,11 +6,10 @@
 #include "Framebuffer.h"
 #include "GPUBuffer.h"
 
-#include <vulkan/vulkan.h>
-
 #include <string_view>
 #include <vector>
 
+#include "CommandBuffer.h"
 #include "Sampler.h"
 #include "Vertex.h"
 
@@ -19,7 +18,8 @@ namespace LearningVulkan
     // TODO: move inside render context
     struct PerFrameData
     {
-        VkCommandBuffer CommandBuffer;
+        CommandBuffer* CommandBuffer;
+        //VkCommandBuffer CommandBuffer;
         VkCommandPool CommandPool;
         VkFence PresentFence;
         VkSemaphore SwapchainImageAcquireSemaphore;
@@ -82,7 +82,7 @@ namespace LearningVulkan
             uint32_t queueFamilyIndex) const;
 
         void RecordCommandBuffer(
-            uint32_t imageIndex, VkCommandBuffer commandBuffer);
+            uint32_t imageIndex, CommandBuffer* commandBuffer);
         static void CreateSyncObjects(
             VkSemaphore& swapchainImageAcquireSemaphore,
             VkSemaphore& queueReadySemaphore,
@@ -102,19 +102,10 @@ namespace LearningVulkan
         void CreateDescriptorPool();
         void CreateDescriptorSets();
         void CreateTexture();
-        void CreateImage(uint32_t width, uint32_t height,
-            VkFormat format, VkImageTiling imageTiling,
-            VkImageUsageFlags imageUsage,
-            VkMemoryPropertyFlags memoryProperties,
-            VkImage& image, VkDeviceMemory& imageMemory);
         void TransitionImageLayout(VkImage image,
             VkImageLayout oldLayout, VkImageLayout newLayout);
         void CopyBufferToImage(VkBuffer source, VkImage destination,
              uint32_t width, uint32_t height);
-        void CreateImageView(const VkImage& image,
-               VkFormat image_format,
-               VkImageAspectFlags image_aspect_flags,
-               VkImageView& image_view);
         void CreateDepthResources();
 
         void AddCube(

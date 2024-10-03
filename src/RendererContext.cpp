@@ -198,8 +198,9 @@ namespace LearningVulkan
                                data.QueueReadySemaphore, nullptr);
             vkDestroyFence(m_LogicalDevice->GetVulkanDevice(),
                             data.PresentFence, nullptr);
-            vkFreeCommandBuffers(m_LogicalDevice->GetVulkanDevice(),
-                            data.CommandPool, 1, &data.CommandBuffer);
+            /*vkFreeCommandBuffers(m_LogicalDevice->GetVulkanDevice(),
+                            data.CommandPool, 1, &data.CommandBuffer);*/
+            delete data.CommandBuffer;
             vkDestroyCommandPool(m_LogicalDevice->GetVulkanDevice(),
                             data.CommandPool, nullptr);
             delete data.CameraUniformBuffer;
@@ -437,15 +438,9 @@ namespace LearningVulkan
     }
 
     void RendererContext::RecordCommandBuffer(
-        uint32_t imageIndex, VkCommandBuffer commandBuffer)
+        uint32_t imageIndex, CommandBuffer* commandBuffer)
     {
-        
-        VkCommandBufferBeginInfo commandBufferInfo{};
-        commandBufferInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-
-        assert(vkBeginCommandBuffer(commandBuffer,
-                                    &commandBufferInfo) == VK_SUCCESS);
-
+        commandBuffer->Begin();
         VkRenderPassBeginInfo renderPassInfo{};
         renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
         renderPassInfo.framebuffer = m_Framebuffers.at(imageIndex)
@@ -460,19 +455,13 @@ namespace LearningVulkan
         renderPassInfo.clearValueCount = clearColor.size();
         renderPassInfo.pClearValues = clearColor.data();
 
-        vkCmdBeginRenderPass(commandBuffer, &renderPassInfo,
-                             VK_SUBPASS_CONTENTS_INLINE);
-        vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
-                          m_Pipeline);
+        commandBuffer->BeginRenderPass(renderPassInfo);
+        commandBuffer->BindPipeline(m_Pipeline);
 
-        VkDeviceSize deviceSizes[] = { 0 };
-        VkBuffer vertexBuffer = m_VertexBuffer->GetVulkanBuffer();
-        vkCmdBindVertexBuffers(commandBuffer, 0, 1,
-                               &vertexBuffer, deviceSizes);
+        commandBuffer->BindVertexBuffer(m_VertexBuffer);
 
-        vkCmdBindIndexBuffer(commandBuffer, m_IndexBuffer->GetVulkanBuffer(),
-                             0, VK_INDEX_TYPE_UINT32);
-
+        commandBuffer->BindIndexBuffer(m_IndexBuffer);
+        
         VkViewport viewport;
         viewport.x = 0;
         viewport.y = 0;
@@ -480,22 +469,20 @@ namespace LearningVulkan
         viewport.height = m_Swapchain->GetExtent().height;
         viewport.minDepth = 0.0f;
         viewport.maxDepth = 1.0f;
-        vkCmdSetViewport(commandBuffer, 0, 1, &viewport);
+        commandBuffer->SetViewport(viewport);
 
         VkRect2D scissor;
         scissor.offset = { 0, 0 };
         scissor.extent = m_Swapchain->GetExtent();
-        vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
-
+        commandBuffer->SetScissor(scissor);
+        
         //vkCmdDraw(commandBuffer, m_Vertices.size(), 1, 0, 0);
-        vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
-                                m_PipelineLayout, 0, 1,
-                                &m_DescriptorSets.at(imageIndex), 0, nullptr);
+        commandBuffer->BindDescriptorSets(m_PipelineLayout, m_DescriptorSets.at(imageIndex));
 
-        vkCmdDrawIndexed(commandBuffer, m_Indices.size(), 1, 0, 0, 0);
+        commandBuffer->DrawIndexed(m_Indices.size(), 1, 0, 0, 0);
 
-        vkCmdEndRenderPass(commandBuffer);
-        vkEndCommandBuffer(commandBuffer);
+        commandBuffer->EndRenderPass();
+        commandBuffer->End();
     }
 
     void RendererContext::CreateSyncObjects(
@@ -529,7 +516,8 @@ namespace LearningVulkan
         data.CommandPool = CreateCommandPool(
             VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT,
             queueFamilyIndices.GraphicsFamily.value());
-        data.CommandBuffer = AllocateCommandBuffer(data.CommandPool);
+        VkCommandBuffer commandBuffer = AllocateCommandBuffer(data.CommandPool);
+        data.CommandBuffer = new CommandBuffer(data.CommandPool, std::move(commandBuffer));
         CreateSyncObjects(
             data.SwapchainImageAcquireSemaphore,
             data.QueueReadySemaphore,
@@ -558,7 +546,7 @@ namespace LearningVulkan
                     currentFrameData.SwapchainImageAcquireSemaphore,
                     imageIndex);
 
-        vkResetCommandBuffer(currentFrameData.CommandBuffer, 0);
+        vkResetCommandBuffer(currentFrameData.CommandBuffer->GetVulkanCommandBuffer(), 0);
 
         UpdateUniformBuffer(m_FrameIndex);
 
@@ -567,7 +555,7 @@ namespace LearningVulkan
         VkSubmitInfo submitInfo{};
         submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
         submitInfo.commandBufferCount = 1;
-        submitInfo.pCommandBuffers = &currentFrameData.CommandBuffer;
+        submitInfo.pCommandBuffers = &currentFrameData.CommandBuffer->GetVulkanCommandBuffer();
         submitInfo.signalSemaphoreCount = 1;
         submitInfo.pSignalSemaphores = &currentFrameData.QueueReadySemaphore;
         submitInfo.waitSemaphoreCount = 1;
@@ -1192,50 +1180,6 @@ namespace LearningVulkan
         m_TestImageSampler = new Sampler(samplerCreateInfo);
     }
 
-    void RendererContext::CreateImage(uint32_t width, uint32_t height, VkFormat format, VkImageTiling imageTiling,
-        VkImageUsageFlags imageUsage, VkMemoryPropertyFlags memoryProperties, VkImage& image,
-        VkDeviceMemory& imageMemory)
-    {
-        VkImageCreateInfo imageCreateInfo{};
-        imageCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
-        imageCreateInfo.extent.width = width;
-        imageCreateInfo.extent.height = height;
-        imageCreateInfo.extent.depth = 1;
-        imageCreateInfo.mipLevels = 1;
-        imageCreateInfo.arrayLayers = 1;
-        imageCreateInfo.imageType = VK_IMAGE_TYPE_2D;
-        imageCreateInfo.format = format;
-        imageCreateInfo.tiling = imageTiling;
-        imageCreateInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-        imageCreateInfo.usage = imageUsage;
-        imageCreateInfo.sharingMode = VK_SHARING_MODE_CONCURRENT;
-
-        const auto& queueFamilyIndices = m_PhysicalDevice->GetQueueFamilyIndices();
-        std::array queueFamilyIndicesArr =
-        {
-            queueFamilyIndices.GraphicsFamily.value(),
-            queueFamilyIndices.TransferFamily.value(),
-        };
-
-        imageCreateInfo.queueFamilyIndexCount = queueFamilyIndicesArr.size();
-        imageCreateInfo.pQueueFamilyIndices = queueFamilyIndicesArr.data();
-        imageCreateInfo.samples = VK_SAMPLE_COUNT_1_BIT;
-
-        assert(vkCreateImage(m_LogicalDevice->GetVulkanDevice(), &imageCreateInfo, nullptr, &image) == VK_SUCCESS);
-
-        VkMemoryRequirements imageMemoryRequirements;
-        vkGetImageMemoryRequirements(m_LogicalDevice->GetVulkanDevice(), image, &imageMemoryRequirements);
-
-        VkMemoryAllocateInfo imageMemoryAllocateInfo{};
-        imageMemoryAllocateInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-        imageMemoryAllocateInfo.allocationSize = imageMemoryRequirements.size;
-        imageMemoryAllocateInfo.memoryTypeIndex = m_PhysicalDevice->FindMemoryType(imageMemoryRequirements.memoryTypeBits, memoryProperties);
-
-        assert(vkAllocateMemory(m_LogicalDevice->GetVulkanDevice(), &imageMemoryAllocateInfo, nullptr, &imageMemory) == VK_SUCCESS);
-
-        assert(vkBindImageMemory(m_LogicalDevice->GetVulkanDevice(), image, imageMemory, 0) == VK_SUCCESS);
-    }
-
     void RendererContext::TransitionImageLayout( VkImage image, VkImageLayout oldLayout, VkImageLayout newLayout)
     {
         VkImageMemoryBarrier memoryBarrier{};
@@ -1351,22 +1295,6 @@ namespace LearningVulkan
     void RendererContext::EndCommandBuffer(VkCommandBuffer commandBuffer)
     {
         assert(vkEndCommandBuffer(commandBuffer) == VK_SUCCESS);
-    }
-
-    void RendererContext::CreateImageView(const VkImage& image, VkFormat image_format, VkImageAspectFlags image_aspect_flags, VkImageView& image_view)
-    {
-        VkImageViewCreateInfo image_view_create_info{};
-        image_view_create_info.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-        image_view_create_info.image = image;
-        image_view_create_info.subresourceRange.aspectMask = image_aspect_flags;
-        image_view_create_info.subresourceRange.baseArrayLayer = 0;
-        image_view_create_info.subresourceRange.baseMipLevel = 0;
-        image_view_create_info.subresourceRange.layerCount = 1;
-        image_view_create_info.subresourceRange.levelCount = 1;
-        image_view_create_info.format = image_format;
-        image_view_create_info.viewType = VK_IMAGE_VIEW_TYPE_2D;
-
-        assert(vkCreateImageView(m_LogicalDevice->GetVulkanDevice(), &image_view_create_info, nullptr, &image_view) == VK_SUCCESS);
     }
 
     void RendererContext::CreateDepthResources()
