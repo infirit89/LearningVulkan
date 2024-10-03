@@ -24,23 +24,23 @@ namespace LearningVulkan
         Image(Image&& other) = delete;
         Image& operator=(const Image& other) = delete;
 
-        VkImage GetVulkanImage() const { return m_Image; }
-        VkImageView GetVulkanImageView() const 
+        const VkImage& GetVulkanImage() const { return m_Image; }
+        const VkImageView& GetVulkanImageView() const 
         { 
             return m_ImageView; 
         }
 
-        VkDeviceMemory GetVulkanImageMemory() const 
+        const VkDeviceMemory& GetVulkanImageMemory() const 
         { 
             return m_ImageMemory; 
         }
 
-        VkImageLayout GetCurrentVulkanLayout() const 
+        const VkImageLayout& GetCurrentVulkanLayout() const 
         { 
             return m_CurrentLayout; 
         }
 
-        VkFormat GetFormat() const 
+        const VkFormat& GetFormat() const 
         { 
             return m_Format; 
         }

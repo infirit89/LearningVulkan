@@ -228,8 +228,7 @@ namespace LearningVulkan
 
         delete m_IndexBuffer;
 
-        vkDestroySampler(m_LogicalDevice->GetVulkanDevice(),
-                         m_TestImageSampler, nullptr);
+        delete m_TestImageSampler;
         delete m_TestImage;
         delete m_LogicalDevice;
 
@@ -1112,7 +1111,7 @@ namespace LearningVulkan
             VkDescriptorImageInfo imageInfo{};
             imageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
             imageInfo.imageView = m_TestImage->GetVulkanImageView();
-            imageInfo.sampler = m_TestImageSampler;
+            imageInfo.sampler = m_TestImageSampler->GetVulkanSampler();
 
             std::array<VkWriteDescriptorSet, 2> writeDescriptorSets{};
 
@@ -1181,7 +1180,16 @@ namespace LearningVulkan
         CopyBufferToImage(stagingBuffer.GetVulkanBuffer(), m_TestImage->GetVulkanImage(), width, height);
         m_TestImage->TransitionLayout(VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
 
-        CreateImageSampler();
+        SamplerCreateInfo samplerCreateInfo{
+            .MagFilter = TextureFilter::Nearest,
+            .MinFilter = TextureFilter::Nearest,
+            .MipmapFilter = TextureFilter::Nearest,
+            .AddressModeU = TextureAddressMode::Repeat,
+            .AddressModeV = TextureAddressMode::Repeat,
+            .AnisotropyEnable = true,
+        };
+
+        m_TestImageSampler = new Sampler(samplerCreateInfo);
     }
 
     void RendererContext::CreateImage(uint32_t width, uint32_t height, VkFormat format, VkImageTiling imageTiling,
@@ -1359,23 +1367,6 @@ namespace LearningVulkan
         image_view_create_info.viewType = VK_IMAGE_VIEW_TYPE_2D;
 
         assert(vkCreateImageView(m_LogicalDevice->GetVulkanDevice(), &image_view_create_info, nullptr, &image_view) == VK_SUCCESS);
-    }
-
-    void RendererContext::CreateImageSampler()
-    {
-        VkSamplerCreateInfo samplerCreateInfo{};
-        samplerCreateInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
-        samplerCreateInfo.magFilter = VK_FILTER_NEAREST;
-        samplerCreateInfo.minFilter = VK_FILTER_NEAREST;
-        samplerCreateInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
-        samplerCreateInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
-        samplerCreateInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
-        samplerCreateInfo.anisotropyEnable = VK_TRUE;
-        VkPhysicalDeviceProperties properties;
-        vkGetPhysicalDeviceProperties(m_PhysicalDevice->GetPhysicalDevice(), &properties);
-        samplerCreateInfo.maxAnisotropy = properties.limits.maxSamplerAnisotropy;
-
-        assert(vkCreateSampler(m_LogicalDevice->GetVulkanDevice(), &samplerCreateInfo, nullptr, &m_TestImageSampler) == VK_SUCCESS);
     }
 
     void RendererContext::CreateDepthResources()

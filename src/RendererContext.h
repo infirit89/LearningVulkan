@@ -11,6 +11,7 @@
 #include <string_view>
 #include <vector>
 
+#include "Sampler.h"
 #include "Vertex.h"
 
 namespace LearningVulkan 
@@ -114,7 +115,6 @@ namespace LearningVulkan
                VkFormat image_format,
                VkImageAspectFlags image_aspect_flags,
                VkImageView& image_view);
-        void CreateImageSampler();
         void CreateDepthResources();
 
         void AddCube(
@@ -153,7 +153,7 @@ namespace LearningVulkan
         uint32_t currentIndex = 0;
 
         Image* m_TestImage;
-        VkSampler m_TestImageSampler;
+        Sampler* m_TestImageSampler;
 
         Image* m_DepthImage;
     };
