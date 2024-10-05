@@ -1164,9 +1164,36 @@ namespace LearningVulkan
         imageCreateInfo.AspectFlags = VK_IMAGE_ASPECT_COLOR_BIT;
 
         m_TestImage = new Image(imageCreateInfo);
-        m_TestImage->TransitionLayout(VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
-        CopyBufferToImage(stagingBuffer.GetVulkanBuffer(), m_TestImage->GetVulkanImage(), width, height);
-        m_TestImage->TransitionLayout(VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+
+        LogicalDevice* logicalDevice = GetLogicalDevice();
+
+        VkCommandBuffer transientTransferCommandBuffer = AllocateCommandBuffer(m_TransientTransferCommandPool);
+        CommandBuffer transferCommandBuffer(m_TransientTransferCommandPool, std::move(transientTransferCommandBuffer));
+        transferCommandBuffer.Begin(CommandBufferUsage::OneTimeSubmit);
+        transferCommandBuffer.TransitionLayout(m_TestImage, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+        transferCommandBuffer.CopyBufferToImage(&stagingBuffer, m_TestImage, width, height);
+        transferCommandBuffer.End();
+
+        VkSubmitInfo transferSubmitInfo{};
+        transferSubmitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+        transferSubmitInfo.commandBufferCount = 1;
+        transferSubmitInfo.pCommandBuffers = &transferCommandBuffer.GetVulkanCommandBuffer();
+        logicalDevice->QueueSubmit(logicalDevice->GetTransferQueue(), 1, &transferSubmitInfo, VK_NULL_HANDLE);
+        logicalDevice->QueueWaitIdle(logicalDevice->GetTransferQueue());
+
+        VkCommandBuffer transientGraphicsCommandBuffer = AllocateCommandBuffer(m_TransientGraphicsCommandPool);
+        CommandBuffer graphicsCommandBuffer(m_TransientGraphicsCommandPool, std::move(transientGraphicsCommandBuffer));
+        graphicsCommandBuffer.Begin(CommandBufferUsage::OneTimeSubmit);
+        graphicsCommandBuffer.TransitionLayout(m_TestImage, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+        graphicsCommandBuffer.End();
+
+        VkSubmitInfo graphicsSubmitInfo{};
+        graphicsSubmitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+        graphicsSubmitInfo.commandBufferCount = 1;
+        graphicsSubmitInfo.pCommandBuffers = &graphicsCommandBuffer.GetVulkanCommandBuffer();
+        logicalDevice->QueueSubmit(logicalDevice->GetGraphicsQueue(), 1, &graphicsSubmitInfo, VK_NULL_HANDLE);
+        logicalDevice->QueueWaitIdle(logicalDevice->GetGraphicsQueue());
+
 
         SamplerCreateInfo samplerCreateInfo{
             .MagFilter = TextureFilter::Nearest,

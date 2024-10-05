@@ -44,11 +44,10 @@ namespace LearningVulkan
         { 
             return m_Format; 
         }
-        
-        void TransitionLayout(VkImageLayout newLayout);
     private:
         void CreateImage(uint32_t width, uint32_t height, VkFormat format, VkImageTiling imageTiling, VkImageUsageFlags imageUsage, VkMemoryPropertyFlags memoryProperties);
         void CreateView(VkFormat imageFormat, VkImageAspectFlags imageAspect);
+
     private:
         VkImage m_Image;
         VkImageView m_ImageView;
@@ -56,5 +55,7 @@ namespace LearningVulkan
         uint32_t m_Width, m_Height;
         VkImageLayout m_CurrentLayout;
         VkFormat m_Format;
+
+        friend class CommandBuffer;
     };
 }

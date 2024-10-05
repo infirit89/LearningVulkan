@@ -2,9 +2,16 @@
 #include <vulkan/vulkan_core.h>
 
 #include "GPUBuffer.h"
+#include "Image.h"
 
 namespace LearningVulkan
 {
+    enum class CommandBufferUsage
+    {
+        None = 0,
+        OneTimeSubmit = 1,
+    };
+
     class CommandBuffer
     {
     public:
@@ -14,7 +21,7 @@ namespace LearningVulkan
         //CommandBuffer(const VkCommandPool& commandPool, VkCommandBufferLevel commandBufferLevel);
         ~CommandBuffer();
 
-        void Begin();
+        void Begin(CommandBufferUsage commandBufferUsage = CommandBufferUsage::None);
         void End();
         void BeginRenderPass(const VkRenderPassBeginInfo& renderPass);
         void EndRenderPass();
@@ -35,6 +42,9 @@ namespace LearningVulkan
         {
             return m_CommandBuffer;
         }
+
+        void TransitionLayout(Image* image, VkImageLayout newLayout);
+        void CopyBufferToImage(GPUBuffer* source, Image* destination, uint32_t width, uint32_t height);
 
     private:
         //void AllocateCommandBuffer(VkCommandPool commandPool, VkCommandBufferLevel commandBufferLevel);
