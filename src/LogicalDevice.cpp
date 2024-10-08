@@ -40,4 +40,15 @@ namespace LearningVulkan
 	{
         assert(vkQueueWaitIdle(queue) == VK_SUCCESS);
 	}
+
+    void LogicalDevice::SubmitImmediateCommands(const CommandBuffer& commandBuffer, VkQueue queue)
+    {
+        VkSubmitInfo submitInfo{};
+        submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+        submitInfo.commandBufferCount = 1;
+        submitInfo.pCommandBuffers = &commandBuffer.GetVulkanCommandBuffer();
+
+        QueueSubmit(queue, 1, &submitInfo, VK_NULL_HANDLE);
+        QueueWaitIdle(queue);
+    }
 }

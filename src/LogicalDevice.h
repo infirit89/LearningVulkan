@@ -3,6 +3,8 @@
 #include "vulkan/vulkan_core.h"
 #include <vulkan/vulkan.h>
 
+#include "CommandBuffer.h"
+
 namespace LearningVulkan 
 {
     class PhysicalDevice;
@@ -19,6 +21,7 @@ namespace LearningVulkan
         PhysicalDevice* GetPhysicalDevice() const { return m_PhysicalDevice; }
         void QueueSubmit(VkQueue queue, uint32_t submitCount, VkSubmitInfo* submitInfos, VkFence fence);
         void QueueWaitIdle(VkQueue queue);
+        void SubmitImmediateCommands(const CommandBuffer& commandBuffer, VkQueue queue);
 
     private:
         LogicalDevice(VkDevice device, PhysicalDevice* physicalDevice);

@@ -135,7 +135,6 @@ namespace LearningVulkan
             window->GetHeight(),
             PresentMode::Mailbox);
 
-        CreateDepthResources();
 
         CreateRenderPass();
 
@@ -147,7 +146,7 @@ namespace LearningVulkan
             std::vector attachments
             {
                 m_Swapchain->GetImageViews().at(i),
-                m_DepthImage->GetVulkanImageView(),
+                m_Swapchain->GetDepthImage()->GetVulkanImageView(),
             };
 
             Framebuffer* framebuffer = new Framebuffer(
@@ -198,13 +197,14 @@ namespace LearningVulkan
                                data.QueueReadySemaphore, nullptr);
             vkDestroyFence(m_LogicalDevice->GetVulkanDevice(),
                             data.PresentFence, nullptr);
-            /*vkFreeCommandBuffers(m_LogicalDevice->GetVulkanDevice(),
-                            data.CommandPool, 1, &data.CommandBuffer);*/
             delete data.CommandBuffer;
             vkDestroyCommandPool(m_LogicalDevice->GetVulkanDevice(),
                             data.CommandPool, nullptr);
+
             delete data.CameraUniformBuffer;
         }
+
+        m_PerFrameData.clear();
 
         vkDestroyPipeline(m_LogicalDevice->GetVulkanDevice(),
                           m_Pipeline, nullptr);
@@ -222,7 +222,6 @@ namespace LearningVulkan
         vkDestroyDescriptorSetLayout(m_LogicalDevice->GetVulkanDevice(),
                                      m_CameraDescriptorSetLayout, nullptr);
 
-        delete m_DepthImage;
         delete m_Swapchain;
 
         delete m_VertexBuffer;
@@ -241,21 +240,75 @@ namespace LearningVulkan
         vkDestroyInstance(m_Instance, nullptr);
     }
 
+    VkInstance RendererContext::GetVulkanInstance()
+    { return m_Instance; }
+
+    VkSurfaceKHR RendererContext::GetVulkanSurface()
+    { return m_Surface; }
+
+    VkCommandPool RendererContext::GetTransientTransferCommandPool()
+    {
+        return m_TransientTransferCommandPool;
+    }
+
+    VkCommandPool RendererContext::GetTransientGraphicsCommandPool()
+    {
+        return m_TransientGraphicsCommandPool;
+    }
+
+    const PhysicalDevice* RendererContext::GetPhysicalDevice() const
+    {
+        return m_PhysicalDevice;
+    }
+
+    LogicalDevice* RendererContext::GetLogicalDevice()
+    {
+        return m_LogicalDevice;
+    }
+
+    Swapchain* RendererContext::GetSwapchain() const
+    {
+        return m_Swapchain;
+    }
+
+    VkRenderPass RendererContext::GetRenderPass() const
+    {
+        return m_RenderPass;
+    }
+
+    const std::vector<Framebuffer*>& RendererContext::GetFramebuffers() const
+    {
+        return m_Framebuffers;
+    }
+
+    const PerFrameData& RendererContext::GetPerFrameData(size_t index) const
+    {
+        return m_PerFrameData.at(index);
+    }
+
+    size_t RendererContext::GetPerFrameDataSize() const
+    {
+        return m_PerFrameData.size();
+    }
+
+    const VkPipeline& RendererContext::GetGraphicsPipeline() const
+    {
+        return m_Pipeline;
+    }
+
     void RendererContext::Resize(uint32_t width, uint32_t height)
     {
         m_LogicalDevice->WaitIdle();
 
         m_Swapchain->Resize(width, height);
-        delete m_DepthImage;
-        CreateDepthResources();
-
+        
         uint32_t index = 0;
         for (const auto& framebuffer : m_Framebuffers)
         {
             std::vector attachments
             {
                 m_Swapchain->GetImageViews().at(index++),
-                m_DepthImage->GetVulkanImageView(),
+                m_Swapchain->GetDepthImage()->GetVulkanImageView(),
             };
             framebuffer->Resize(attachments, width, height);
         }
@@ -345,7 +398,7 @@ namespace LearningVulkan
         colorAttachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
 
         VkAttachmentDescription depthAttachment{};
-        depthAttachment.format = m_DepthImage->GetFormat();
+        depthAttachment.format = m_Swapchain->GetDepthImage()->GetFormat();
         depthAttachment.samples = VK_SAMPLE_COUNT_1_BIT;
         depthAttachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
         depthAttachment.finalLayout = 
@@ -420,7 +473,7 @@ namespace LearningVulkan
         return commandPool;
     }
 
-    VkCommandBuffer RendererContext::AllocateCommandBuffer(
+    CommandBuffer RendererContext::CreateStackCommandBuffer(
         VkCommandPool commandPool)
     {
         VkCommandBufferAllocateInfo commandBufferAllocateInfo{};
@@ -430,17 +483,37 @@ namespace LearningVulkan
         commandBufferAllocateInfo.commandPool = commandPool;
         commandBufferAllocateInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
         
-        VkCommandBuffer commandBuffer;
+        VkCommandBuffer vulkanCommandBuffer;
         assert(vkAllocateCommandBuffers(m_LogicalDevice->GetVulkanDevice(),
                                         &commandBufferAllocateInfo,
-                                        &commandBuffer) == VK_SUCCESS);
+                                        &vulkanCommandBuffer) == VK_SUCCESS);
+        CommandBuffer commandBuffer(commandPool, std::move(vulkanCommandBuffer));
+
         return commandBuffer;
     }
 
-    void RendererContext::RecordCommandBuffer(
-        uint32_t imageIndex, CommandBuffer* commandBuffer)
+    CommandBuffer* RendererContext::CreateCommandBuffer(VkCommandPool commandPool)
     {
-        commandBuffer->Begin();
+        VkCommandBufferAllocateInfo commandBufferAllocateInfo{};
+        commandBufferAllocateInfo.sType =
+            VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+        commandBufferAllocateInfo.commandBufferCount = 1;
+        commandBufferAllocateInfo.commandPool = commandPool;
+        commandBufferAllocateInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+
+        VkCommandBuffer vulkanCommandBuffer;
+        assert(vkAllocateCommandBuffers(m_LogicalDevice->GetVulkanDevice(),
+            &commandBufferAllocateInfo,
+            &vulkanCommandBuffer) == VK_SUCCESS);
+        CommandBuffer* commandBuffer = new CommandBuffer(commandPool, std::move(vulkanCommandBuffer));
+        return commandBuffer;
+    }
+
+
+    void RendererContext::RecordCommandBuffer(
+        uint32_t imageIndex, CommandBuffer& commandBuffer)
+    {
+        commandBuffer.Begin();
         VkRenderPassBeginInfo renderPassInfo{};
         renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
         renderPassInfo.framebuffer = m_Framebuffers.at(imageIndex)
@@ -455,12 +528,12 @@ namespace LearningVulkan
         renderPassInfo.clearValueCount = clearColor.size();
         renderPassInfo.pClearValues = clearColor.data();
 
-        commandBuffer->BeginRenderPass(renderPassInfo);
-        commandBuffer->BindPipeline(m_Pipeline);
+        commandBuffer.BeginRenderPass(renderPassInfo);
+        commandBuffer.BindPipeline(m_Pipeline);
 
-        commandBuffer->BindVertexBuffer(m_VertexBuffer);
+        commandBuffer.BindVertexBuffer(m_VertexBuffer);
 
-        commandBuffer->BindIndexBuffer(m_IndexBuffer);
+        commandBuffer.BindIndexBuffer(m_IndexBuffer);
         
         VkViewport viewport;
         viewport.x = 0;
@@ -469,20 +542,20 @@ namespace LearningVulkan
         viewport.height = m_Swapchain->GetExtent().height;
         viewport.minDepth = 0.0f;
         viewport.maxDepth = 1.0f;
-        commandBuffer->SetViewport(viewport);
+        commandBuffer.SetViewport(viewport);
 
         VkRect2D scissor;
         scissor.offset = { 0, 0 };
         scissor.extent = m_Swapchain->GetExtent();
-        commandBuffer->SetScissor(scissor);
+        commandBuffer.SetScissor(scissor);
         
         //vkCmdDraw(commandBuffer, m_Vertices.size(), 1, 0, 0);
-        commandBuffer->BindDescriptorSets(m_PipelineLayout, m_DescriptorSets.at(imageIndex));
+        commandBuffer.BindDescriptorSets(m_PipelineLayout, m_DescriptorSets.at(imageIndex));
 
-        commandBuffer->DrawIndexed(m_Indices.size(), 1, 0, 0, 0);
+        commandBuffer.DrawIndexed(m_Indices.size(), 1, 0, 0, 0);
 
-        commandBuffer->EndRenderPass();
-        commandBuffer->End();
+        commandBuffer.EndRenderPass();
+        commandBuffer.End();
     }
 
     void RendererContext::CreateSyncObjects(
@@ -516,8 +589,7 @@ namespace LearningVulkan
         data.CommandPool = CreateCommandPool(
             VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT,
             queueFamilyIndices.GraphicsFamily.value());
-        VkCommandBuffer commandBuffer = AllocateCommandBuffer(data.CommandPool);
-        data.CommandBuffer = new CommandBuffer(data.CommandPool, std::move(commandBuffer));
+        data.CommandBuffer = CreateCommandBuffer(data.CommandPool);
         CreateSyncObjects(
             data.SwapchainImageAcquireSemaphore,
             data.QueueReadySemaphore,
@@ -534,7 +606,7 @@ namespace LearningVulkan
 
     void RendererContext::DrawFrame()
     {
-        const PerFrameData& currentFrameData = m_PerFrameData.at(m_FrameIndex);
+        PerFrameData& currentFrameData = m_PerFrameData.at(m_FrameIndex);
         assert(vkWaitForFences(m_LogicalDevice->GetVulkanDevice(), 1,
                                &currentFrameData.PresentFence,
                                VK_TRUE, UINT64_MAX) == VK_SUCCESS);
@@ -550,7 +622,7 @@ namespace LearningVulkan
 
         UpdateUniformBuffer(m_FrameIndex);
 
-        RecordCommandBuffer(imageIndex, currentFrameData.CommandBuffer);
+        RecordCommandBuffer(imageIndex, *currentFrameData.CommandBuffer);
 
         VkSubmitInfo submitInfo{};
         submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
@@ -579,8 +651,7 @@ namespace LearningVulkan
         VkGraphicsPipelineCreateInfo graphicsPipelineCreateInfo{};
         graphicsPipelineCreateInfo.sType =
                             VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
-        graphicsPipelineCreateInfo.renderPass = m_RenderPass;
-
+        
         std::vector<char> vertexShaderData = ReadShaderFile(
                                         "assets/shaders/bin/BasicVert.spv");
         std::vector<char> fragmentShaderData = ReadShaderFile(
@@ -822,39 +893,45 @@ namespace LearningVulkan
                                        bufferSize,
                                        VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 
-        CopyBuffer(stagingBuffer.GetVulkanBuffer(),
-                   m_VertexBuffer->GetVulkanBuffer(), bufferSize);
+        CommandBuffer transferCommandBuffer = CreateStackCommandBuffer(m_TransientTransferCommandPool);
+
+        transferCommandBuffer.Begin(CommandBufferUsage::OneTimeSubmit);
+        transferCommandBuffer.CopyBuffer(&stagingBuffer, m_VertexBuffer, bufferSize);
+        transferCommandBuffer.End();
+
+        LogicalDevice* logicalDevice = GetLogicalDevice();
+        logicalDevice->SubmitImmediateCommands(transferCommandBuffer, logicalDevice->GetTransferQueue());
     }
 
-    void RendererContext::CopyBuffer(
-        VkBuffer sourceBuffer, VkBuffer destinationBuffer, VkDeviceSize size)
-    {
-        VkCommandBuffer copyCommandBuffer =
-                        AllocateCommandBuffer(m_TransientTransferCommandPool);
-        BeginCommandBuffer(copyCommandBuffer, 
-                           VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
+    //void RendererContext::CopyBuffer(
+    //    VkBuffer sourceBuffer, VkBuffer destinationBuffer, VkDeviceSize size)
+    //{
+    //    //VkCommandBuffer copyCommandBuffer =
+    //    //                AllocateCommandBuffer(m_TransientTransferCommandPool);
+    //    //BeginCommandBuffer(copyCommandBuffer, 
+    //    //                   VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
 
-        VkBufferCopy bufferCopy{};
-        bufferCopy.size = size;
-        vkCmdCopyBuffer(copyCommandBuffer, sourceBuffer, 
-                        destinationBuffer, 1, &bufferCopy);
+    //    //VkBufferCopy bufferCopy{};
+    //    //bufferCopy.size = size;
+    //    //vkCmdCopyBuffer(copyCommandBuffer, sourceBuffer, 
+    //    //                destinationBuffer, 1, &bufferCopy);
 
-        EndCommandBuffer(copyCommandBuffer);
+    //    //EndCommandBuffer(copyCommandBuffer);
 
-        // NOTE: using fences here would allow for multiple transfer operations to happen, potentially allowing the driver to optimize
-        VkSubmitInfo submitInfo{};
-        submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-        submitInfo.commandBufferCount = 1;
-        submitInfo.pCommandBuffers = &copyCommandBuffer;
-        assert(vkQueueSubmit(m_LogicalDevice->GetTransferQueue(), 1,
-                             &submitInfo, VK_NULL_HANDLE) == VK_SUCCESS);
+    //    //// NOTE: using fences here would allow for multiple transfer operations to happen, potentially allowing the driver to optimize
+    //    //VkSubmitInfo submitInfo{};
+    //    //submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+    //    //submitInfo.commandBufferCount = 1;
+    //    //submitInfo.pCommandBuffers = &copyCommandBuffer;
+    //    //assert(vkQueueSubmit(m_LogicalDevice->GetTransferQueue(), 1,
+    //    //                     &submitInfo, VK_NULL_HANDLE) == VK_SUCCESS);
 
-        vkQueueWaitIdle(m_LogicalDevice->GetTransferQueue());
+    //    //vkQueueWaitIdle(m_LogicalDevice->GetTransferQueue());
 
-        vkFreeCommandBuffers(m_LogicalDevice->GetVulkanDevice(),
-                             m_TransientTransferCommandPool, 1,
-                             &copyCommandBuffer);
-    }
+    //    //vkFreeCommandBuffers(m_LogicalDevice->GetVulkanDevice(),
+    //    //                     m_TransientTransferCommandPool, 1,
+    //    //                     &copyCommandBuffer);
+    //}
 
     void RendererContext::CreateIndexBuffer()
     {
@@ -872,8 +949,15 @@ namespace LearningVulkan
                                       bufferSize,
                                       VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 
-        CopyBuffer(stagingBuffer.GetVulkanBuffer(),
-                   m_IndexBuffer->GetVulkanBuffer(), bufferSize);
+        CommandBuffer transferCommandBuffer = CreateStackCommandBuffer(m_TransientTransferCommandPool);
+
+        transferCommandBuffer.Begin(CommandBufferUsage::OneTimeSubmit);
+        transferCommandBuffer.CopyBuffer(&stagingBuffer, m_IndexBuffer, bufferSize);
+        transferCommandBuffer.End();
+
+        LogicalDevice* logicalDevice = GetLogicalDevice();
+
+        logicalDevice->SubmitImmediateCommands(transferCommandBuffer, logicalDevice->GetTransferQueue());
     }
 
     void RendererContext::CreateCameraDescriptorSetLayout()
@@ -917,7 +1001,7 @@ namespace LearningVulkan
     static glm::vec3 right = { 1.0f, 0.0f, 0.0f };
     static glm::vec3 up = { 0.0f, 1.0f, 0.0f };
     static double lastMouseX, lastMouseY;
-    static  bool first = true;
+    static bool first = true;
     static double pitch = 0.0, yaw = -90.0;
 
     static glm::mat4 testlookat(
@@ -1154,7 +1238,7 @@ namespace LearningVulkan
 
         stbi_image_free(imageData);
 
-        ImageCreateInfo imageCreateInfo{};
+        ImageCreateInfo imageCreateInfo;
         imageCreateInfo.Width = width;
         imageCreateInfo.Height = height;
         imageCreateInfo.Format = VK_FORMAT_R8G8B8A8_SRGB;
@@ -1167,33 +1251,20 @@ namespace LearningVulkan
 
         LogicalDevice* logicalDevice = GetLogicalDevice();
 
-        VkCommandBuffer transientTransferCommandBuffer = AllocateCommandBuffer(m_TransientTransferCommandPool);
-        CommandBuffer transferCommandBuffer(m_TransientTransferCommandPool, std::move(transientTransferCommandBuffer));
+        CommandBuffer transferCommandBuffer = CreateStackCommandBuffer(m_TransientTransferCommandPool);
         transferCommandBuffer.Begin(CommandBufferUsage::OneTimeSubmit);
         transferCommandBuffer.TransitionLayout(m_TestImage, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
         transferCommandBuffer.CopyBufferToImage(&stagingBuffer, m_TestImage, width, height);
         transferCommandBuffer.End();
 
-        VkSubmitInfo transferSubmitInfo{};
-        transferSubmitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-        transferSubmitInfo.commandBufferCount = 1;
-        transferSubmitInfo.pCommandBuffers = &transferCommandBuffer.GetVulkanCommandBuffer();
-        logicalDevice->QueueSubmit(logicalDevice->GetTransferQueue(), 1, &transferSubmitInfo, VK_NULL_HANDLE);
-        logicalDevice->QueueWaitIdle(logicalDevice->GetTransferQueue());
+        logicalDevice->SubmitImmediateCommands(transferCommandBuffer, logicalDevice->GetTransferQueue());
 
-        VkCommandBuffer transientGraphicsCommandBuffer = AllocateCommandBuffer(m_TransientGraphicsCommandPool);
-        CommandBuffer graphicsCommandBuffer(m_TransientGraphicsCommandPool, std::move(transientGraphicsCommandBuffer));
+        CommandBuffer graphicsCommandBuffer = CreateStackCommandBuffer(m_TransientGraphicsCommandPool);
         graphicsCommandBuffer.Begin(CommandBufferUsage::OneTimeSubmit);
         graphicsCommandBuffer.TransitionLayout(m_TestImage, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
         graphicsCommandBuffer.End();
 
-        VkSubmitInfo graphicsSubmitInfo{};
-        graphicsSubmitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-        graphicsSubmitInfo.commandBufferCount = 1;
-        graphicsSubmitInfo.pCommandBuffers = &graphicsCommandBuffer.GetVulkanCommandBuffer();
-        logicalDevice->QueueSubmit(logicalDevice->GetGraphicsQueue(), 1, &graphicsSubmitInfo, VK_NULL_HANDLE);
-        logicalDevice->QueueWaitIdle(logicalDevice->GetGraphicsQueue());
-
+        logicalDevice->SubmitImmediateCommands(graphicsCommandBuffer, logicalDevice->GetGraphicsQueue());
 
         SamplerCreateInfo samplerCreateInfo{
             .MagFilter = TextureFilter::Nearest,
@@ -1205,164 +1276,6 @@ namespace LearningVulkan
         };
 
         m_TestImageSampler = new Sampler(samplerCreateInfo);
-    }
-
-    void RendererContext::TransitionImageLayout( VkImage image, VkImageLayout oldLayout, VkImageLayout newLayout)
-    {
-        VkImageMemoryBarrier memoryBarrier{};
-        memoryBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
-        memoryBarrier.image = image;
-        memoryBarrier.oldLayout = oldLayout;
-        memoryBarrier.newLayout = newLayout;
-        memoryBarrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-        memoryBarrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-        memoryBarrier.subresourceRange.baseArrayLayer = 0;
-        memoryBarrier.subresourceRange.baseMipLevel = 0;
-        memoryBarrier.subresourceRange.layerCount = 1;
-        memoryBarrier.subresourceRange.levelCount = 1;
-        memoryBarrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-
-        VkCommandBuffer commandBuffer = VK_NULL_HANDLE;
-
-        if (newLayout == VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL)
-            commandBuffer = AllocateCommandBuffer(m_TransientGraphicsCommandPool);
-        else
-            commandBuffer = AllocateCommandBuffer(m_TransientTransferCommandPool);
-
-        BeginCommandBuffer(commandBuffer, VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
-
-        VkPipelineStageFlags srcStageFlags = 0;
-        VkPipelineStageFlags dstStageFlags = 0;
-
-        if(oldLayout == VK_IMAGE_LAYOUT_UNDEFINED && newLayout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL)
-        {
-            srcStageFlags = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
-            dstStageFlags = VK_PIPELINE_STAGE_TRANSFER_BIT;
-
-            memoryBarrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-        }
-        else if(oldLayout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL && newLayout == VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL)
-        {
-            srcStageFlags = VK_PIPELINE_STAGE_TRANSFER_BIT;
-            dstStageFlags = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
-
-            memoryBarrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-            memoryBarrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
-        }
-        else
-        {
-            assert(false);
-        }
-
-        vkCmdPipelineBarrier(commandBuffer, srcStageFlags, dstStageFlags, 
-            0, 0, nullptr, 
-            0, nullptr, 1, &memoryBarrier);
-        EndCommandBuffer(commandBuffer);
-
-        VkSubmitInfo submitInfo{};
-        submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-        submitInfo.commandBufferCount = 1;
-        submitInfo.pCommandBuffers = &commandBuffer;
-
-        if(newLayout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL)
-        {
-            assert(vkQueueSubmit(m_LogicalDevice->GetTransferQueue(), 1, &submitInfo, VK_NULL_HANDLE) == VK_SUCCESS);
-            assert(vkQueueWaitIdle(m_LogicalDevice->GetTransferQueue()) == VK_SUCCESS);
-        }
-        else
-        {
-            assert(vkQueueSubmit(m_LogicalDevice->GetGraphicsQueue(), 1, &submitInfo, VK_NULL_HANDLE) == VK_SUCCESS);
-            assert(vkQueueWaitIdle(m_LogicalDevice->GetGraphicsQueue()) == VK_SUCCESS);
-        }
-
-        if (newLayout == VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL)
-            vkFreeCommandBuffers(m_LogicalDevice->GetVulkanDevice(), m_TransientGraphicsCommandPool, 1, &commandBuffer);
-        else
-            vkFreeCommandBuffers(m_LogicalDevice->GetVulkanDevice(), m_TransientTransferCommandPool, 1, &commandBuffer);
-    }
-
-    void RendererContext::CopyBufferToImage(VkBuffer source, VkImage destination, uint32_t width, uint32_t height)
-    {
-        VkCommandBuffer copyCommandBuffer = AllocateCommandBuffer(m_TransientTransferCommandPool);
-        BeginCommandBuffer(copyCommandBuffer, VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
-
-        VkBufferImageCopy bufferImageCopy{};
-        bufferImageCopy.bufferImageHeight = 0;
-        bufferImageCopy.bufferOffset = 0;
-        bufferImageCopy.bufferRowLength = 0;
-        bufferImageCopy.imageExtent = {  width, height, 1 };
-        bufferImageCopy.imageOffset = { 0, 0, 0 };
-        bufferImageCopy.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-        bufferImageCopy.imageSubresource.baseArrayLayer = 0;
-        bufferImageCopy.imageSubresource.layerCount = 1;
-        bufferImageCopy.imageSubresource.mipLevel = 0;
-
-        vkCmdCopyBufferToImage(copyCommandBuffer, source, destination, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &bufferImageCopy);
-
-        assert(vkEndCommandBuffer(copyCommandBuffer) == VK_SUCCESS);
-
-        VkSubmitInfo submitInfo{};
-        submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-        submitInfo.commandBufferCount = 1;
-        submitInfo.pCommandBuffers = &copyCommandBuffer;
-        assert(vkQueueSubmit(m_LogicalDevice->GetTransferQueue(), 1, &submitInfo, VK_NULL_HANDLE) == VK_SUCCESS);
-        vkQueueWaitIdle(m_LogicalDevice->GetTransferQueue());
-        vkFreeCommandBuffers(m_LogicalDevice->GetVulkanDevice(), m_TransientTransferCommandPool, 1, &copyCommandBuffer);
-    }
-
-    void RendererContext::BeginCommandBuffer(VkCommandBuffer commandBuffer, VkCommandBufferUsageFlags usageFlags)
-    {
-        VkCommandBufferBeginInfo commandBufferBeginInfo{};
-        commandBufferBeginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-        commandBufferBeginInfo.flags = usageFlags;
-
-        assert(vkBeginCommandBuffer(commandBuffer, &commandBufferBeginInfo) == VK_SUCCESS);
-    }
-
-    void RendererContext::EndCommandBuffer(VkCommandBuffer commandBuffer)
-    {
-        assert(vkEndCommandBuffer(commandBuffer) == VK_SUCCESS);
-    }
-
-    void RendererContext::CreateDepthResources()
-    {
-        std::array desiredDepthFormats = {
-            VK_FORMAT_D32_SFLOAT,
-            VK_FORMAT_D32_SFLOAT_S8_UINT,
-            VK_FORMAT_D24_UNORM_S8_UINT,
-        };
-
-        VkFormat depthFormat = VK_FORMAT_UNDEFINED;
-        for (auto desiredDepthFormat : desiredDepthFormats)
-        {
-            VkFormatProperties format_properties;
-            vkGetPhysicalDeviceFormatProperties(m_PhysicalDevice->GetPhysicalDevice(), desiredDepthFormat, &format_properties);
-
-            if((format_properties.optimalTilingFeatures & VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT) == VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT)
-            {
-                depthFormat = desiredDepthFormat;
-                break;
-            }
-            /*else if((format_properties.linearTilingFeatures & VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT) == VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT)
-            {
-                depth_format = desired_depth_format;
-                break;
-            }*/
-        }
-
-        assert(depthFormat != VK_FORMAT_UNDEFINED);
-
-        auto swapchain_extent = m_Swapchain->GetExtent();
-        ImageCreateInfo depthImageCreateInfo{};
-        depthImageCreateInfo.Width = swapchain_extent.width;
-        depthImageCreateInfo.Height = swapchain_extent.height;
-        depthImageCreateInfo.Usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
-        depthImageCreateInfo.Tiling = VK_IMAGE_TILING_OPTIMAL;
-        depthImageCreateInfo.Format = depthFormat;
-        depthImageCreateInfo.MemoryProperties = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
-        depthImageCreateInfo.AspectFlags = VK_IMAGE_ASPECT_DEPTH_BIT;
-        
-        m_DepthImage = new Image(depthImageCreateInfo);
     }
 
     void RendererContext::AddCube(const glm::mat4& transformMatrix)

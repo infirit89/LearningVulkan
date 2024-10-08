@@ -21,8 +21,21 @@ namespace LearningVulkan
     CommandBuffer::~CommandBuffer()
     {
         LogicalDevice* logicalDevice = RendererContext::GetLogicalDevice();
-        vkFreeCommandBuffers(logicalDevice->GetVulkanDevice(), m_CommandPool, 
+        vkFreeCommandBuffers(logicalDevice->GetVulkanDevice(), m_CommandPool,
             1, &m_CommandBuffer);
+    }
+
+
+    CommandBuffer::CommandBuffer(CommandBuffer&& other) noexcept
+        : m_CommandBuffer(std::move(other.m_CommandBuffer)), m_CommandPool(other.m_CommandPool)
+    {
+    }
+
+    CommandBuffer& CommandBuffer::operator=(CommandBuffer&& other) noexcept
+    {
+        m_CommandBuffer = std::move(other.m_CommandBuffer);
+        m_CommandPool = other.m_CommandPool;
+        return *this;
     }
 
     void CommandBuffer::Begin(CommandBufferUsage commandBufferUsage)
@@ -88,6 +101,11 @@ namespace LearningVulkan
         int32_t vertexOffset, uint32_t firstInstance)
     {
         vkCmdDrawIndexed(m_CommandBuffer, indexCount, instanceCount, firstIndex, vertexOffset, firstInstance);
+    }
+
+    const VkCommandBuffer& CommandBuffer::GetVulkanCommandBuffer() const
+    {
+        return m_CommandBuffer;
     }
 
     void CommandBuffer::TransitionLayout(Image* image, VkImageLayout newLayout)
@@ -198,6 +216,16 @@ namespace LearningVulkan
         vkCmdCopyBufferToImage(m_CommandBuffer, source->GetVulkanBuffer(),
             destination->GetVulkanImage(), destination->GetCurrentVulkanLayout(),
             1, &bufferImageCopy);
+    }
+
+    void CommandBuffer::CopyBuffer(const GPUBuffer* source, const GPUBuffer* destination, size_t size)
+    {
+        VkBufferCopy bufferCopy;
+        bufferCopy.dstOffset = 0;
+        bufferCopy.size = size;
+        bufferCopy.srcOffset = 0;
+        vkCmdCopyBuffer(m_CommandBuffer, source->GetVulkanBuffer(), 
+            destination->GetVulkanBuffer(), 1, &bufferCopy);
     }
 
     /*void CommandBuffer::AllocateCommandBuffer(VkCommandPool commandPool, 

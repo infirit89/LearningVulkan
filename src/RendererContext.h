@@ -36,40 +36,34 @@ namespace LearningVulkan
         RendererContext(std::string_view applicationName);
         ~RendererContext();
 
-        static VkInstance GetVulkanInstance() { return m_Instance; }
-        static VkSurfaceKHR GetVulkanSurface() { return m_Surface; }
-        static VkCommandPool GetTransientTransferCommandPool() 
-        {
-            return m_TransientTransferCommandPool;
-        }
-        static VkCommandPool GetTransientGraphicsCommandPool()
-        {
-            return m_TransientGraphicsCommandPool;
-        }
+        static VkInstance GetVulkanInstance();
+        static VkSurfaceKHR GetVulkanSurface();
 
-        const PhysicalDevice* GetPhysicalDevice() const 
-        { return m_PhysicalDevice; }
-        static LogicalDevice* GetLogicalDevice() 
-        { return m_LogicalDevice; }
-        Swapchain* GetSwapchain() const { return m_Swapchain; }
-        VkRenderPass GetRenderPass() const { return m_RenderPass; }
+        static VkCommandPool GetTransientTransferCommandPool();
+
+        static VkCommandPool GetTransientGraphicsCommandPool();
+
+        const PhysicalDevice* GetPhysicalDevice() const;
+
+        static LogicalDevice* GetLogicalDevice();
+        Swapchain* GetSwapchain() const;
+        VkRenderPass GetRenderPass() const;
 
         void Resize(uint32_t width, uint32_t height);
-        const std::vector<Framebuffer*>& GetFramebuffers() const 
-        { return m_Framebuffers; }
-        const PerFrameData& GetPerFrameData(size_t index) const 
-        { return m_PerFrameData.at(index); }
-        size_t GetPerFrameDataSize() const 
-        { return m_PerFrameData.size(); }
-        const VkPipeline& GetGraphicsPipeline() const 
-        { return m_Pipeline; }
+        const std::vector<Framebuffer*>& GetFramebuffers() const;
+
+        const PerFrameData& GetPerFrameData(size_t index) const;
+
+        size_t GetPerFrameDataSize() const;
+
+        const VkPipeline& GetGraphicsPipeline() const;
         void DrawFrame();
 
-        static VkCommandBuffer AllocateCommandBuffer(
+        static CommandBuffer CreateStackCommandBuffer(
             VkCommandPool commandPool);
-        static void BeginCommandBuffer(VkCommandBuffer commandBuffer,
-              VkCommandBufferUsageFlags usageFlags);
-        static void EndCommandBuffer(VkCommandBuffer commandBuffer);
+
+        static CommandBuffer* CreateCommandBuffer(
+            VkCommandPool commandPool);
     private:
         static void CreateVulkanInstance(std::string_view applicationName);
         static bool CheckLayersAvailability();
@@ -82,7 +76,7 @@ namespace LearningVulkan
             uint32_t queueFamilyIndex) const;
 
         void RecordCommandBuffer(
-            uint32_t imageIndex, CommandBuffer* commandBuffer);
+            uint32_t imageIndex, CommandBuffer& commandBuffer);
         static void CreateSyncObjects(
             VkSemaphore& swapchainImageAcquireSemaphore,
             VkSemaphore& queueReadySemaphore,
@@ -93,21 +87,13 @@ namespace LearningVulkan
         static VkShaderModule CreateShader(
             const std::vector<char>& shaderData);
         void CreateVertexBuffer();
-        void CopyBuffer(
-            VkBuffer sourceBuffer,
-            VkBuffer destinationBuffer, VkDeviceSize size);
         void CreateIndexBuffer();
         void CreateCameraDescriptorSetLayout();
         void UpdateUniformBuffer(uint32_t frameIndex);
         void CreateDescriptorPool();
         void CreateDescriptorSets();
         void CreateTexture();
-        void TransitionImageLayout(VkImage image,
-            VkImageLayout oldLayout, VkImageLayout newLayout);
-        void CopyBufferToImage(VkBuffer source, VkImage destination,
-             uint32_t width, uint32_t height);
-        void CreateDepthResources();
-
+        
         void AddCube(
             const glm::mat4& transformMatrix = glm::mat4(1.0f));
 
@@ -145,8 +131,6 @@ namespace LearningVulkan
 
         Image* m_TestImage;
         Sampler* m_TestImageSampler;
-
-        Image* m_DepthImage;
     };
 }
 

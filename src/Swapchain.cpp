@@ -8,13 +8,13 @@
 
 namespace LearningVulkan 
 {
-	static VkPresentModeKHR ConvertToVkPresentMode(PresentMode presentMode) 
+	static constexpr VkPresentModeKHR ConvertToVkPresentMode(PresentMode presentMode) 
 	{
 		switch (presentMode)
 		{
-		case LearningVulkan::PresentMode::Mailbox: return VK_PRESENT_MODE_MAILBOX_KHR;
-		case LearningVulkan::PresentMode::Fifo: return VK_PRESENT_MODE_FIFO_KHR;
-		case LearningVulkan::PresentMode::Imediate: return VK_PRESENT_MODE_IMMEDIATE_KHR;
+		case PresentMode::Mailbox: return VK_PRESENT_MODE_MAILBOX_KHR;
+		case PresentMode::Fifo: return VK_PRESENT_MODE_FIFO_KHR;
+		case PresentMode::Immediate: return VK_PRESENT_MODE_IMMEDIATE_KHR;
 		}
 
 		std::cerr << "Couldn't convert to vk present mode defaulting to fifo\n";
@@ -32,7 +32,32 @@ namespace LearningVulkan
 		Destroy(m_Swapchain);
 	}
 
-	void Swapchain::Resize(uint32_t width, uint32_t height)
+    const VkExtent2D& Swapchain::GetExtent() const
+	{
+	    return m_Extent;
+	}
+
+    const std::vector<VkImageView>& Swapchain::GetImageViews() const
+	{
+	    return m_ImageViews;
+	}
+
+    const VkSurfaceFormatKHR& Swapchain::GetSurfaceFormat() const
+	{
+	    return m_SurfaceFormat;
+	}
+
+    constexpr const VkSwapchainKHR& Swapchain::GetVulkanSwapchain() const
+	{
+	    return m_Swapchain;
+	}
+
+    constexpr Image* Swapchain::GetDepthImage() const
+	{
+	    return m_DepthImage;
+	}
+
+    void Swapchain::Resize(uint32_t width, uint32_t height)
 	{
 		m_Width = width;
 		m_Height = height;
@@ -135,6 +160,8 @@ namespace LearningVulkan
 			imageViewCreateInfo.subresourceRange.layerCount = 1;
 			assert(vkCreateImageView(m_LogicalDevice->GetVulkanDevice(), &imageViewCreateInfo, nullptr, &m_ImageViews.at(i)) == VK_SUCCESS);
 		}
+
+        CreateDepthResources();
 	}
 
 	void Swapchain::Destroy(VkSwapchainKHR swapchain)
@@ -143,9 +170,53 @@ namespace LearningVulkan
 			vkDestroyImageView(m_LogicalDevice->GetVulkanDevice(), imageViews, nullptr);
 
 		vkDestroySwapchainKHR(m_LogicalDevice->GetVulkanDevice(), swapchain, nullptr);
+
+        delete m_DepthImage;
 	}
 
-	VkSurfaceFormatKHR Swapchain::ChooseCorrectSurfaceFormat(const std::vector<VkSurfaceFormatKHR>& surfaceFormats) 
+    void Swapchain::CreateDepthResources()
+    {
+        std::array desiredDepthFormats = {
+            VK_FORMAT_D32_SFLOAT,
+            VK_FORMAT_D32_SFLOAT_S8_UINT,
+            VK_FORMAT_D24_UNORM_S8_UINT,
+        };
+
+        VkFormat depthFormat = VK_FORMAT_UNDEFINED;
+        PhysicalDevice* physicalDevice = m_LogicalDevice->GetPhysicalDevice();
+        for (auto desiredDepthFormat : desiredDepthFormats)
+        {
+            VkFormatProperties format_properties;
+            vkGetPhysicalDeviceFormatProperties(physicalDevice->GetPhysicalDevice(), desiredDepthFormat, &format_properties);
+
+            if ((format_properties.optimalTilingFeatures & VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT) == VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT)
+            {
+                depthFormat = desiredDepthFormat;
+                break;
+            }
+            /*else if((format_properties.linearTilingFeatures & VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT) == VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT)
+            {
+                depth_format = desired_depth_format;
+                break;
+            }*/
+        }
+
+        assert(depthFormat != VK_FORMAT_UNDEFINED);
+
+        auto swapchainExtent = GetExtent();
+        ImageCreateInfo depthImageCreateInfo;
+        depthImageCreateInfo.Width = swapchainExtent.width;
+        depthImageCreateInfo.Height = swapchainExtent.height;
+        depthImageCreateInfo.Usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
+        depthImageCreateInfo.Tiling = VK_IMAGE_TILING_OPTIMAL;
+        depthImageCreateInfo.Format = depthFormat;
+        depthImageCreateInfo.MemoryProperties = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
+        depthImageCreateInfo.AspectFlags = VK_IMAGE_ASPECT_DEPTH_BIT;
+
+        m_DepthImage = new Image(depthImageCreateInfo);
+    }
+
+    constexpr const VkSurfaceFormatKHR& Swapchain::ChooseCorrectSurfaceFormat(const std::vector<VkSurfaceFormatKHR>& surfaceFormats) 
 	{
 		for (const auto& surfaceFormat : surfaceFormats)
 		{
@@ -156,7 +227,7 @@ namespace LearningVulkan
 		return surfaceFormats.at(0);
 	}
 
-	VkPresentModeKHR Swapchain::ChooseSurfacePresentMode(const std::vector<VkPresentModeKHR>& presentModes) 
+	constexpr VkPresentModeKHR Swapchain::ChooseSurfacePresentMode(const std::vector<VkPresentModeKHR>& presentModes) 
 	{
 		for (const auto& presentMode : presentModes)
 		{
@@ -169,7 +240,7 @@ namespace LearningVulkan
 		return VK_PRESENT_MODE_FIFO_KHR;
 	}
 
-	VkExtent2D Swapchain::ChooseSwapchainExtent(const VkSurfaceCapabilitiesKHR& surfaceCapabilities) 
+	constexpr VkExtent2D Swapchain::ChooseSwapchainExtent(const VkSurfaceCapabilitiesKHR& surfaceCapabilities) 
 	{
 		VkExtent2D extent = {
 			m_Width,
