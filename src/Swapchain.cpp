@@ -52,11 +52,6 @@ namespace LearningVulkan
 	    return m_Swapchain;
 	}
 
-    constexpr Image* Swapchain::GetDepthImage() const
-	{
-	    return m_DepthImage;
-	}
-
     void Swapchain::Resize(uint32_t width, uint32_t height)
 	{
 		m_Width = width;
@@ -101,7 +96,7 @@ namespace LearningVulkan
 		swapchainCreateInfo.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
 		swapchainCreateInfo.imageExtent = m_Extent;
 		swapchainCreateInfo.surface = RendererContext::GetVulkanSurface();
-		swapchainCreateInfo.presentMode = ConvertToVkPresentMode(m_DesiredPresentMode);
+		swapchainCreateInfo.presentMode = presentMode;
 		swapchainCreateInfo.imageFormat = m_SurfaceFormat.format;
 		swapchainCreateInfo.imageColorSpace = m_SurfaceFormat.colorSpace;
 		swapchainCreateInfo.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
@@ -229,10 +224,11 @@ namespace LearningVulkan
 
 	constexpr VkPresentModeKHR Swapchain::ChooseSurfacePresentMode(const std::vector<VkPresentModeKHR>& presentModes) 
 	{
+        VkPresentModeKHR desiredPresentMode = ConvertToVkPresentMode(m_DesiredPresentMode);
 		for (const auto& presentMode : presentModes)
 		{
 			// present images last in first out
-			if (presentMode == VK_PRESENT_MODE_MAILBOX_KHR)
+			if (presentMode == desiredPresentMode)
 				return presentMode;
 		}
 

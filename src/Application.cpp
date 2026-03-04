@@ -10,10 +10,9 @@
 #include <filesystem>
 #include <fstream>
 
-#define GLFW_EXPOSE_NATIVE_WIN32
+// #define GLFW_EXPOSE_NATIVE_WIN32
+#define GLFW_EXPOSE_NATIVE_COCOA
 #include <GLFW/glfw3native.h>
-
-#include <optick.h>
 
 namespace LearningVulkan 
 {
@@ -41,7 +40,6 @@ namespace LearningVulkan
         float currentFrameTime = 0.0f, lastFrameTime = 0.0f;
         while (m_Window->IsOpen())
         {
-            OPTICK_FRAME("MainThread");
             currentFrameTime = glfwGetTime();
             m_DeltaTime = currentFrameTime - lastFrameTime;
             lastFrameTime = currentFrameTime;

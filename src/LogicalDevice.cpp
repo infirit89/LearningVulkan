@@ -14,11 +14,11 @@ namespace LearningVulkan
 
 		assert(queueFamilyIndices.GraphicsFamily.has_value());
 		assert(queueFamilyIndices.PresentationFamily.has_value());
-		assert(queueFamilyIndices.TransferFamily.has_value());
 
+        uint32_t transferQueueFamilyIndex = queueFamilyIndices.TransferFamily.has_value() ? queueFamilyIndices.TransferFamily.value() : queueFamilyIndices.GraphicsFamily.value();
 		vkGetDeviceQueue(device, queueFamilyIndices.GraphicsFamily.value(), 0, &m_GraphicsQueue);
 		vkGetDeviceQueue(device, queueFamilyIndices.PresentationFamily.value(), 0, &m_PresentQueue);
-		vkGetDeviceQueue(device, queueFamilyIndices.TransferFamily.value(), 0, &m_TransferQueue);
+		vkGetDeviceQueue(device, transferQueueFamilyIndex, 0, &m_TransferQueue);
 	}
 
 	LogicalDevice::~LogicalDevice()

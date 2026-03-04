@@ -2,7 +2,7 @@
 
 #include "LogicalDevice.h"
 
-#include <vulkan/vulkan.h>
+#include "vulkan/vulkan.h"
 
 #include <optional>
 #include <vector>
@@ -13,7 +13,7 @@ namespace LearningVulkan
     struct QueueFamilyIndices 
     {
         std::optional<uint32_t> GraphicsFamily, PresentationFamily, TransferFamily;
-        bool IsComplete() const { return GraphicsFamily.has_value() && PresentationFamily.has_value() && TransferFamily.has_value(); }
+        bool IsComplete() const { return GraphicsFamily.has_value() && PresentationFamily.has_value(); }
     };
 
     struct SwapchainSupportDetails

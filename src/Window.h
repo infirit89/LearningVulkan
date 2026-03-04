@@ -1,10 +1,22 @@
 #pragma once
 
 #include <cstdint>
-
-#define VK_USE_PLATFORM_WIN32_KHR
+#ifdef _WIN32
+    #ifdef _WIN64
+        #define VK_USE_PLATFORM_WIN32_KHR
+    #else
+        #error "Unsupported platform"
+    #endif
+#elif defined(__APPLE__)
+    #include <TargetConditionals.h>
+    #if TARGET_OS_OSX == 1
+        #define VK_USE_PLATFORM_MACOS_MVK
+    #else
+        #error "Unsupported Apple platform"
+    #endif
+#endif
 #define GLFW_INCLUDE_VULKAN
-#include <GLFW/glfw3.h>
+#include "GLFW/glfw3.h"
 #include <functional>
 
 namespace LearningVulkan 

@@ -28,7 +28,9 @@ namespace LearningVulkan
         void Resize(uint32_t width, uint32_t height);
         void Present(VkSemaphore semaphore, uint32_t imageIndex);
         void AcquireNextImage(VkSemaphore imageAcquireSemaphore, uint32_t& imageIndex);
-        constexpr Image* GetDepthImage() const;
+        constexpr Image* GetDepthImage() const {
+        return m_DepthImage;
+    }
         
     private:
         void Create();
